@@ -9,9 +9,26 @@ puppeteer.use(StealthPlugin());
 // --- Helper Functions ---
 function getDateRange(timeframe) {
     const now = new Date();
-    if (timeframe === 'next_week') now.setDate(now.getDate() + 7);
-    else if (timeframe === 'tomorrow') now.setDate(now.getDate() + 1);
-    else if (typeof timeframe === 'number') now.setDate(now.getDate() + timeframe);
+    
+    if (timeframe === 'next_week') {
+        now.setDate(now.getDate() + 7);
+    } else if (timeframe === 'tomorrow') {
+        now.setDate(now.getDate() + 1);
+    } else if (typeof timeframe === 'number') {
+        now.setDate(now.getDate() + timeframe);
+    } else {
+        // Default: tomorrow if invalid timeframe
+        now.setDate(now.getDate() + 1);
+    }
+    
+    // Safety check: ensure date is in the future
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (now <= today) {
+        console.warn('⚠️ Calculated date is in the past, using tomorrow instead');
+        now.setDate(today.getDate() + 1);
+    }
+    
     return now;
 }
 
@@ -46,6 +63,7 @@ async function closeCookieBanner(page) {
 
 // --- Main Scraper ---
 async function scrapeAccommodation(destination, duration, adults, children) {
+    
     let browser;
     try {
         const durationDays = getDurationDays(duration);
@@ -55,7 +73,7 @@ async function scrapeAccommodation(destination, duration, adults, children) {
         const checkInStr = formatDate(checkIn);
         const checkOutStr = formatDate(checkOut);
 
-        const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(destination)}&checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&chal_t=${Date.now()}&force_referer=`;
+        const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(destination)}&checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&chal_t=${Date.now()}&selected_currency=USD&order=price`;
 
         browser = await launchBrowser();
         const page = await browser.newPage();
@@ -101,7 +119,6 @@ async function scrapeAccommodation(destination, duration, adults, children) {
             from: checkInStr,
             to: checkOutStr
         };
-        console.log('🏨 Accommodation Data:', result);
         
         return result;
 

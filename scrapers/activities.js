@@ -3,8 +3,72 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const UserAgent = require('user-agents');
 const fs = require('fs');
 const path = require('path');
+const Redis = require('ioredis');
+
+// --- Redis Setup ---
+let redis = null;
+
+function getRedisClient() {
+    if (!redis && process.env.REDIS_URL) {
+        try {
+            redis = new Redis(process.env.REDIS_URL, {
+                maxRetriesPerRequest: 3,
+                retryStrategy(times) {
+                    if (times > 3) return null;
+                    return Math.min(times * 200, 1000);
+                }
+            });
+
+            redis.on('error', (err) => {
+                console.warn('⚠️ Redis connection error:', err.message);
+                redis = null;
+            });
+
+            console.log('✅ Redis client initialized');
+        } catch (err) {
+            console.warn('⚠️ Failed to initialize Redis:', err.message);
+            redis = null;
+        }
+    }
+    return redis;
+}
 
 puppeteer.use(StealthPlugin());
+
+// --- Helper Functions ---
+function getDateRange(timeframe) {
+    const now = new Date();
+    
+    if (timeframe === 'next_week') {
+        now.setDate(now.getDate() + 7);
+    } else if (timeframe === 'tomorrow') {
+        now.setDate(now.getDate() + 1);
+    } else if (typeof timeframe === 'number') {
+        now.setDate(now.getDate() + timeframe);
+    } else {
+        // Default: tomorrow if invalid timeframe
+        now.setDate(now.getDate() + 1);
+    }
+    
+    // Safety check: ensure date is in the future
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (now <= today) {
+        console.warn('⚠️ Calculated date is in the past, using tomorrow instead');
+        now.setDate(today.getDate() + 1);
+    }
+    
+    return now;
+}
+
+function getDurationDays(duration) {
+    if (typeof duration === 'string' && duration.endsWith('d')) return parseInt(duration.replace('d', ''), 10);
+    return Number(duration) || 7;
+}
+
+function formatDate(date) {
+    return date.toISOString().split('T')[0];
+}
 
 async function launchBrowser() {
     return await puppeteer.launch({
@@ -23,13 +87,34 @@ async function closeCookieBanner(page) {
             console.log('✅ Accepted GetYourGuide cookies');
             await page.waitForTimeout(1000);
         }
-    } catch (e) {}
+    } catch (e) { }
 }
 
-async function scrapeActivities(destination, travelStyles) {
+async function scrapeActivities(destination, duration) {
+
     let browser;
     try {
-        const url = `https://www.getyourguide.com/s/?q=${encodeURIComponent(destination)}`;
+        const durationDays = getDurationDays(duration);
+        const checkIn = getDateRange('1-3-months');
+        const checkOut = new Date(checkIn.getTime() + durationDays * 24 * 60 * 60 * 1000);
+
+        const checkInStr = formatDate(checkIn);
+        const checkOutStr = formatDate(checkOut);
+        const url = `https://www.getyourguide.com/s?q=${destination}&searchSource=3&src=search_bar&date_from=${checkInStr}&date_to=${checkOutStr}`;
+
+        // Check cache first
+        const redisClient = getRedisClient();
+        if (redisClient) {
+            try {
+                const cached = await redisClient.get(url);
+                if (cached) {
+                    console.log('✅ Returning cached activities data');
+                    return JSON.parse(cached);
+                }
+            } catch (err) {
+                console.warn('⚠️ Redis get error:', err.message);
+            }
+        }
 
         browser = await launchBrowser();
         const page = await browser.newPage();
@@ -89,7 +174,15 @@ async function scrapeActivities(destination, travelStyles) {
             totalPrice
         };
 
-        console.log('🎟️ Activities Data:', result);
+            // Cache the result for 24 hours
+        if (redisClient && result) {
+            try {
+                await redisClient.setex(url, 86400, JSON.stringify(result));
+                console.log('✅ Cached activities data for 24 hours');
+            } catch (err) {
+                console.warn('⚠️ Redis set error:', err.message);
+            }
+        }
 
         return result;
 
@@ -99,11 +192,6 @@ async function scrapeActivities(destination, travelStyles) {
     } finally {
         if (browser) await browser.close();
     }
-}
-
-// --- Run standalone ---
-if (require.main === module) {
-    scrapeActivities('New York, USA', ['cultural', 'adventure']);
 }
 
 module.exports = scrapeActivities;

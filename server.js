@@ -6,7 +6,45 @@ const fs = require('fs');
 const path = require('path');
 const { scrapeAccommodation, scrapeActivities, scrapeFlights } = require('./scrapers');
 const airportCodes = require('./country_airports.json');
+const countries = require('./countries.json');
 require('dotenv').config();
+const Redis = require('ioredis');
+   const budgetRanges = {
+        'under-500': { min: 0, max: 500 },
+        '500-1000': { min: 500, max: 1000 },
+        '1000-2000': { min: 1000, max: 2000 },
+        '2000-5000': { min: 2000, max: 5000 },
+        'over-5000': { min: 5000, max: 50000 }
+    };
+
+// --- Redis Setup ---
+let redis = null;
+
+function getRedisClient() {
+    if (!redis && process.env.REDIS_URL) {
+        try {
+            redis = new Redis(process.env.REDIS_URL, {
+                maxRetriesPerRequest: 3,
+                retryStrategy(times) {
+                    if (times > 3) return null;
+                    return Math.min(times * 200, 1000);
+                }
+            });
+
+            redis.on('error', (err) => {
+                console.warn('⚠️ Redis connection error:', err.message);
+                redis = null;
+            });
+
+            console.log('✅ Redis client initialized');
+        } catch (err) {
+            console.warn('⚠️ Failed to initialize Redis:', err.message);
+            redis = null;
+        }
+    }
+    return redis;
+}
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -52,7 +90,7 @@ function saveDatabase() {
 }
 
 function generateTaskId() {
-    return `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `TASK${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 }
 
 function getDurationDays(duration) {
@@ -82,9 +120,11 @@ app.post('/api/plan-vacation', async (req, res) => {
         );
         saveDatabase();
 
+        console.time(taskId)
         processTask(taskId, req.body).catch(err => {
             console.error(`Error processing task ${taskId}:`, err);
             updateTaskStatus(taskId, 'failed', null, err.message);
+            console.timeEnd(taskId);
         });
 
         res.json({ taskId, status: 'pending' });
@@ -115,6 +155,10 @@ app.get('/api/task/:taskId', (req, res) => {
     }
 });
 
+app.get('/api/airports', (_, res) => {
+    res.json(airportCodes);
+});
+
 function updateTaskStatus(taskId, status, resultData = null, errorMessage = null) {
     const now = Date.now();
     db.run(
@@ -125,104 +169,146 @@ function updateTaskStatus(taskId, status, resultData = null, errorMessage = null
 }
 
 // Background processing
-async function processTask(taskId, requestData) {
+async function processTask(taskId, requestData, results = [], attempts = 0) {
+    const maxAttempts = 3;
+
     try {
-        console.log(`Processing task ${taskId}...`);
+        console.log(`Processing task ${taskId}...`, { attempts, maxAttempts });
 
         // Step 1: Get destination suggestions from LLM
-        console.log('Step 1: Getting destination suggestions from LLM...');
-        const destinations = await getDestinationSuggestions(requestData);
+        console.log('Step 1: Getting destination suggestions from LLM...', requestData);
+        let destinations = await getDestinationSuggestions(requestData, attempts > 0);
+        destinations = destinations.filter(d => {
+            // Exclude already processed destinations
+            return results.map(r => r.name).indexOf(d.name) === -1;
+        }); 
+        console.log('Destinations:', destinations.map((d, i) => `${i + 1}. ${d.name} - Budget: $${d.estimatedBudget}`));
         if (!destinations?.length) throw new Error('No suitable destinations found');
-
-        const results = [];
 
         // Step 2: Scrape data for each destination and departure airport
         for (const destination of destinations) {
-            const departureAirports = airportCodes.filter(a => requestData.departureCountry === a.country_code).slice(0, 2);
+            console.log('RESULTS', destination.name, results.map(r => r.estimatedCost.total), destination.estimatedBudget, budgetRanges[requestData.budget]);
+            if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) break; // Limit to top 3 destinations
 
-            for (const departure of departureAirports) {
-                try {
-                    const adults = requestData.travelers.filter(t => t.type === 'adult').length;
-                    const children = requestData.travelers.length - adults;
+            const departure = airportCodes.find((s) => s.iata === requestData.departureCountry);
 
-                    // Scrape flights
-                    const flightData = await scrapeFlights({
-                        departureAirport: departure.iata,
-                        destinationAirport: destination.airportCode,
-                        timeframe: requestData.timeframe,
-                        duration: requestData.duration,
-                        adults,
-                        children
-                    });
-                    if (!flightData?.price) continue;
+            try {
+                const adults = requestData.travelers.filter(t => t.type === 'adult').length;
+                const children = requestData.travelers.length - adults;
 
-                    // Scrape accommodation
-                    const accommodationData = await scrapeAccommodation(
-                        destination.name,
-                        requestData.duration,
-                        adults,
-                        children
-                    );
-                    if (!accommodationData) continue;
+                // Scrape flights
+                const flightData = await scrapeFlights({
+                    departureAirport: departure.iata,
+                    destinationAirport: destination.airportCode,
+                    timeframe: requestData.timeframe,
+                    duration: requestData.duration,
+                    adults,
+                    children
+                });
+                if (!flightData?.price || Number(flightData.price) > budgetRanges[requestData.budget].max) {
+                    console.log(`Flight price ${flightData?.price} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                    continue;
+                };
 
-                    // Scrape activities
-                    const activitiesData = await scrapeActivities(
-                        destination.name,
-                        requestData.travelStyles
-                    );
-                    if (!activitiesData) continue;
-
-                    // Combine results
-                    const totalCost = flightData.price +
-                        (accommodationData.pricePerNight * getDurationDays(requestData.duration)) +
-                        activitiesData.totalPrice;
-
-                    results.push({
-                        name: destination.name,
-                        visaStatus: destination.visaStatus,
-                        visaProcessingTime: destination.visaProcessingTime,
-                        visaRequirements: destination.visaRequirements,
-                        estimatedCost: {
-                            flights: flightData.price,
-                            accommodation: accommodationData.pricePerNight * getDurationDays(requestData.duration),
-                            activities: activitiesData.totalPrice,
-                            total: totalCost
-                        },
-                        flightDetails: flightData,
-                        accommodationSuggestion: accommodationData.name,
-                        topActivities: activitiesData.activities,
-                        timeline: {
-                            visaApplication: destination.visaTimeline,
-                            bookingDeadline: calculateBookingDeadline(requestData.timeframe),
-                            departureDate: flightData.departureDate
-                        }
-                    });
-
-                    console.log(`✓ Successfully scraped ${destination.name}`);
-
-                } catch (err) {
-                    console.error(`Error scraping ${destination.name}:`, err.message);
+                // Scrape accommodation
+                const accommodationData = await scrapeAccommodation(
+                    destination.name,
+                    requestData.duration,
+                    adults,
+                    children
+                );
+                if (!accommodationData || Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
+                    console.log(`Accommodation price ${accommodationData?.price} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
                     continue;
                 }
+
+                // Scrape activities
+                const activitiesData = await scrapeActivities(
+                    destination.name,
+                    requestData.duration
+                );
+                if (!activitiesData || activitiesData.totalPrice > budgetRanges[requestData.budget].max) {
+                    console.log(`Activities total price ${activitiesData?.totalPrice} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                    continue;
+                };
+
+                // Combine results
+                const totalCost = Number(flightData.price) +
+                    (Number(accommodationData.pricePerNight) * getDurationDays(requestData.duration)) +
+                    Number(activitiesData.totalPrice);
+
+                if (totalCost > budgetRanges[requestData.budget].max) {
+                    console.warn(`Total cost ${totalCost} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                    continue;
+                }
+
+                results.push({
+                    name: destination.name,
+                    visaStatus: destination.visaStatus,
+                    visaProcessingTime: destination.visaProcessingTime,
+                    visaRequirements: destination.visaRequirements,
+                    estimatedCost: {
+                        flights: flightData.price,
+                        accommodation: accommodationData.pricePerNight * getDurationDays(requestData.duration),
+                        activities: activitiesData.totalPrice,
+                        total: totalCost
+                    },
+                    flightDetails: flightData,
+                    accommodationSuggestion: accommodationData.name,
+                    topActivities: activitiesData.activities,
+                    timeline: {
+                        visaApplication: destination.visaTimeline,
+                        bookingDeadline: calculateBookingDeadline(requestData.timeframe),
+                        departureDate: flightData.departureDate
+                    }
+                });
+
+                console.log(`✓ Successfully scraped ${destination.name}`);
+
+            } catch (err) {
+                console.error(`Error scraping ${destination.name}:`, err.message);
+                continue;
             }
+
         }
 
-        if (!results.length) throw new Error('Could not retrieve complete data for any destination');
+        attempts++;
+
+        if (results.length < 3) {
+            if(attempts < maxAttempts) {
+                console.log(`No complete data retrieved, retrying (attempt ${attempts} of ${maxAttempts})...`);
+                return processTask(taskId, requestData, results, attempts);
+            }
+            throw new Error('Could not retrieve complete data for any destination');
+        }
 
         // Sort by total cost
         results.sort((a, b) => a.estimatedCost.total - b.estimatedCost.total);
         updateTaskStatus(taskId, 'completed', { destinations: results });
         console.log(`✓ Task ${taskId} completed with ${results.length} destinations`);
     } catch (err) {
-        console.error(`Task ${taskId} failed:`, err.message);
+        console.error(`Task ${taskId} failed:`, err);
         updateTaskStatus(taskId, 'failed', null, err.message);
     }
 }
 
 // OpenAI helper
-async function getDestinationSuggestions(requestData) {
-    return [{ name: 'Istanbul, Turkey', countryCode: 'TR', airportCode: 'IST', visaStatus: 'e-visa', visaProcessingTime: '3-5 business days', visaRequirements: ['Valid passport', 'Return ticket', 'Proof of accommodation', 'Valid UK visa'], visaTimeline: 'Apply for an e-visa online before travel. It takes a few minutes to fill out the application.', estimatedBudget: 500, reason: 'Istanbul is a vibrant city known for its rich culinary scene and lively nightlife, making it perfect for food and shopping enthusiasts.' }, { name: 'Accra, Ghana', countryCode: 'GH', airportCode: 'ACC', visaStatus: 'visa-free', visaProcessingTime: 'No visa required', visaRequirements: ['Valid passport', 'Return ticket'], visaTimeline: 'No visa is required for entry; travelers simply need to present their passport and return ticket upon arrival.', estimatedBudget: 400, reason: 'Accra offers a unique blend of culture, nightlife, and delicious local cuisine, ideal for a short getaway.' }, { name: 'Banjul, Gambia', countryCode: 'GM', airportCode: 'BJL', visaStatus: 'visa-on-arrival', visaProcessingTime: '15 minutes at airport', visaRequirements: ['Valid passport', 'Return ticket', 'Proof of accommodation'], visaTimeline: 'Obtain visa on arrival at the airport by presenting necessary documents.', estimatedBudget: 450, reason: 'Banjul is known for its laid-back vibe, local food, and markets, making it a great destination for relaxation and culinary experiences.' }];
-    
+async function getDestinationSuggestions(requestData, noCache = false) {
+    const redisClient = getRedisClient();
+    const cacheKey = `destinations:${JSON.stringify(requestData)}`;
+
+    if (redisClient && !noCache) {
+        try {
+            const cached = await redisClient.get(cacheKey);
+            if (cached) {
+                console.log('✅ Returning cached destination data');
+                return JSON.parse(cached);
+            }
+        } catch (err) {
+            console.warn('⚠️ Redis get error:', err.message);
+        }
+    }
+
     const prompt = buildDestinationPrompt(requestData);
 
     const response = await openai.chat.completions.create({
@@ -236,26 +322,62 @@ async function getDestinationSuggestions(requestData) {
     });
 
     const result = JSON.parse(response.choices[0].message.content);
+
+    // Cache the result for 24 hours
+    if (redisClient && result?.destinations) {
+        try {
+            await redisClient.setex(cacheKey, 3600, JSON.stringify(result.destinations));
+            // console.log('✅ Cached destination data for 1 hour');
+        } catch (err) {
+            console.warn('⚠️ Redis set error:', err.message);
+        }
+    }
     return result.destinations;
 }
 
 // Build prompt
 function buildDestinationPrompt(requestData) {
     const { travelers, budget, timeframe, duration, visaPreference, travelStyles } = requestData;
-    const budgetRanges = {
-        'under-500': { min: 0, max: 500 },
-        '500-1000': { min: 500, max: 1000 },
-        '1000-2000': { min: 1000, max: 2000 },
-        '2000-5000': { min: 2000, max: 5000 },
-        'over-5000': { min: 5000, max: 50000 }
-    };
+ 
     const budgetRange = budgetRanges[budget];
 
     const travelersInfo = travelers.map((t, i) =>
-        `Traveler ${i + 1}: ${t.name}, nationality: ${t.nationality}, residence: ${t.residence}, existing visas: ${t.visas.join(', ') || 'none'}`
+        `Traveler ${i + 1}: ${t.name}, nationality: ${countries.find((s) => s.code === t.nationality).name}, residence: ${countries.find((s) => s.code === t.residence).name}, existing visas/residence permit: ${t.visas.join(', ') || 'none'}`
     ).join('\n');
 
-    const prompt = `Suggest 2-3 suitable vacation destinations for the following travelers: TRAVELERS: ${travelersInfo} REQUIREMENTS: - Budget: $${budgetRange.min} - $${budgetRange.max} (total for all travelers) - Travel timeframe: ${timeframe} - Trip duration: ${duration} - Visa preference: ${visaPreference} - Travel interests: ${travelStyles.join(', ')} IMPORTANT VISA REQUIREMENTS RULES: 1. Consider each traveler's nationality and residence when determining visa requirements. For example, a resident/citizen of Germany doesn't need visa to visit any schengen country 2. If any traveler who's not a citizen of these countries holds a valid US, UK, or Schengen visa, consider destinations that offer visa-on-arrival or e-visa for such visa holders 3. Based on visa preference: - "visa-free": Only suggest destinations where ALL travelers can enter without visa - "visa-on-arrival": Include destinations with visa-on-arrival for ALL travelers - "short-processing": Include destinations with visa processing up to 4 weeks - "any-processing": Include any destination regardless of visa processing time For each destination, provide: 1. name: Full destination name (city and country) 2. countryCode: ISO 2-letter country code 3. airportCode: IATA code of the main international airport 4. visaStatus: "visa-free" | "visa-on-arrival" | "e-visa" | "standard-visa" 5. visaProcessingTime: Estimated time (e.g., "No visa required", "15 minutes at airport", "3-5 business days", "2-3 weeks") 6. visaRequirements: Array of requirements (e.g., ["Valid passport", "Return ticket", "Proof of accommodation"]) 7. visaTimeline: Brief explanation of visa process 8. estimatedBudget: Rough estimate of total cost for this destination 9. reason: Why this destination is suitable Return ONLY valid JSON in this exact format: { "destinations": [ { "name": "Dubai, UAE", "countryCode": "AE", "airportCode": "DXB", "visaStatus": "visa-on-arrival", "visaProcessingTime": "15 minutes at airport", "visaRequirements": ["Valid passport with 6 months validity", "Return ticket", "Hotel booking"], "visaTimeline": "Get visa on arrival at Dubai airport. Present required documents at immigration.", "estimatedBudget": 1800, "reason": "Offers visa-on-arrival for Nigerian passport holders with valid US/UK/Schengen visa. Popular destination with excellent infrastructure." } ] } ;`;
+    const prompt = `Suggest 10 suitable vacation destinations for the following travelers:
+    TRAVELERS:
+    ${travelersInfo}
+    
+    REQUIREMENTS:
+    - Budget: $${budgetRange.min} - $${budgetRange.max} (total for all travelers)
+    - Travel timeframe: ${timeframe}
+    - Trip duration: ${duration}
+    - Visa preference: ${visaPreference}
+    - Travel interests: ${travelStyles.join(', ')}
+    - Departing from: ${countries.find((a) => a.code === airportCodes.find((s) => s.iata === requestData.departureCountry).country_code).name} (${requestData.departureCountry})
+    
+    IMPORTANT VISA REQUIREMENTS RULES:
+    1. Consider each traveler's nationality and residence when determining visa requirements. For example, a resident/citizen of Germany doesn't need visa to visit any schengen country
+    2. If any traveler who's not a citizen of these countries holds a valid US, UK, or Schengen visa, consider destinations that offer visa-on-arrival or e-visa for such visa holders
+    3. Exclude any country with US travel advisory status level 3 or 4 for any traveler's nationality
+    4. Based on visa preference:
+        - "visa-free": Only suggest destinations where ALL travelers can enter without additional visa outside their passport/residence country
+        - "visa-on-arrival": Include destinations with visa-on-arrival for ALL travelers based on their passport/residence country or existing valid visas
+        - "short-processing": Include destinations with visa processing up to 4 weeks
+        - "any-processing": Include any destination regardless of visa processing time For each destination, provide:
+            1. name: Full destination name (city and country)
+            2. countryCode: ISO 2-letter country code
+            3. airportCode: IATA code of the main international airport
+            4. visaStatus: "visa-free" | "visa-on-arrival" | "e-visa" | "standard-visa"
+            5. visaProcessingTime: Estimated time (e.g., "No visa required", "15 minutes at airport", "3-5 business days", "2-3 weeks")
+            6. visaRequirements: Array of requirements (e.g., ["Valid passport", "Return ticket", "Proof of accommodation"])
+            7. visaTimeline: Brief explanation of entry requirement based on travelers' profiles, and visa processing if required. e.g holders of EU residence permit don't need visa to enter Spain OR 6-months bank statement showing balance of $100xnumber_of_days is required to apply for France Visa.
+            8. estimatedBudget: Rough estimate of total cost for this destination
+            9. reason: Why this destination is suitable based on the travelers' profiles and preferences
+            Return ONLY valid JSON in this exact format:
+            { "destinations": [ { "name": "Dubai, UAE", "countryCode": "AE", "airportCode": "DXB", "visaStatus": "visa-on-arrival", "visaProcessingTime": "15 minutes at airport", "visaRequirements": ["Valid passport with 6 months validity", "Return ticket", "Hotel booking"], "visaTimeline": "Get visa on arrival at Dubai airport. Present required documents at immigration.", "estimatedBudget": 1800, "reason": "Offers visa-on-arrival for Nigerian passport holders with valid US/UK/Schengen visa. Popular destination with excellent infrastructure." } ] } ;
+             `;
 
     return prompt;
 }
