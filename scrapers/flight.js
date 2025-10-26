@@ -35,33 +35,83 @@ function getRedisClient() {
 // --- Helper Functions ---
 function getDateRange(timeframe) {
     const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // local midnight
 
-    if (timeframe === 'next_week') {
-        now.setDate(now.getDate() + 7);
-    } else if (timeframe === 'tomorrow') {
-        now.setDate(now.getDate() + 1);
-    } else if (typeof timeframe === 'number') {
-        now.setDate(now.getDate() + timeframe);
+    // helper: clone + add days
+    const addDays = (date, days) => {
+        const d = new Date(date.getTime());
+        d.setDate(d.getDate() + days);
+        return d;
+    };
+
+    let target;
+
+    if (typeof timeframe === 'number') {
+        target = addDays(today, timeframe);
     } else {
-        // Default: tomorrow if invalid timeframe
-        now.setDate(now.getDate() + 1);
+        switch (timeframe) {
+            case '1-month':        // within 1 month -> choose ~30 days from today
+                target = addDays(today, 15);
+                break;
+            case '1-3-months':     // start of range -> ~30 days
+                target = addDays(today, 45);
+                break;
+            case '3-6-months':     // start of range -> ~90 days
+                target = addDays(today, 90);
+                break;
+            case '6-plus-months':  // start -> ~180 days
+                target = addDays(today, 100);
+                break;
+            case 'next_week':
+                target = addDays(today, 7);
+                break;
+            case 'tomorrow':
+                target = addDays(today, 1);
+                break;
+            default:
+                // fallback: tomorrow
+                target = addDays(today, 1);
+        }
     }
 
-    // Safety check: ensure date is in the future
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (now <= today) {
-        console.warn('⚠️ Calculated date is in the past, using tomorrow instead');
-        now.setDate(today.getDate() + 1);
+    // safety: if computed date is not in the future (edge cases), use tomorrow
+    if (target <= today) {
+        console.warn('⚠️ Calculated date is not in the future; using tomorrow instead');
+        target = addDays(today, 1);
     }
 
-    return now;
+    return target;
 }
 
 function getDurationDays(duration) {
-    if (typeof duration === 'string' && duration.endsWith('d')) return parseInt(duration.replace('d', ''), 10);
-    return Number(duration) || 7;
+    if (!duration || typeof duration !== 'string') return 7; // default 7 days
+
+    duration = duration.toLowerCase();
+
+    // Match "3-5-days" or "5-7-days"
+    let dayMatch = duration.match(/(\d+)-(\d+)-days/);
+    if (dayMatch) {
+        const min = parseInt(dayMatch[1], 10);
+        const max = parseInt(dayMatch[2], 10);
+        return Math.round((min + max) / 2); // average
+    }
+
+    // Match "1-2-weeks" or "2-plus-weeks"
+    let weekMatch = duration.match(/(\d+)(?:-(\d+)|\+)?-weeks/);
+    if (weekMatch) {
+        const minWeeks = parseInt(weekMatch[1], 10);
+        const maxWeeks = weekMatch[2] ? parseInt(weekMatch[2], 10) : minWeeks + 1; // "plus" -> add 1 week
+        return Math.round(((minWeeks + maxWeeks) / 2) * 7); // convert weeks → days
+    }
+
+    // If it's a single number with "d" suffix
+    let singleDayMatch = duration.match(/(\d+)d/);
+    if (singleDayMatch) return parseInt(singleDayMatch[1], 10);
+
+    // fallback
+    return 7;
 }
+
 
 function formatDate(date) {
     return date.toISOString().split('T')[0];
@@ -206,10 +256,10 @@ async function waitForFlightResults(page, selector = 'ul[class*="FlightsResults_
 
 // --- Main Scraper ---
 async function scrapeFlights({
-    departureAirport = 'BER',
-    destinationAirport = 'BCN',
-    timeframe = 'next_week',
-    duration = '7d',
+    departureAirport,
+    destinationAirport,
+    timeframe = '1-month',
+    duration = '5-7-days',
     adults = 1,
     children = 0
 } = {}) {
@@ -224,7 +274,7 @@ async function scrapeFlights({
     const departureDateStr = `${year.substr(-2)}${month}${day}`;
     const returnDateStr = `${year2.substr(-2)}${month2}${day2}`;
 
-    const url = `https://www.skyscanner.de/transport/flights/${departureAirport}/${destinationAirport}/${departureDateStr}/${returnDateStr}/?adultsv2=${adults}&cabinclass=economy&childrenv2=${children}&ref=home&rtn=1&preferdirects=false&outboundaltsenabled=false&inboundaltsenabled=false&currency=USD`;
+    const url = `https://www.skyscanner.de/transport/flights/${departureAirport}/${destinationAirport}/${departureDateStr}/${returnDateStr}/?adultsv2=${adults}&cabinclass=economy${children > 0 ? `&childrenv2=${children}` : ''}&ref=home&rtn=1&preferdirects=false&outboundaltsenabled=false&inboundaltsenabled=false&currency=USD`;
 
     // Check cache first
     const redisClient = getRedisClient();
@@ -256,13 +306,7 @@ async function scrapeFlights({
         await handleCaptchaLoop(page, page.url());
         await closeLoginModal(page);
 
-        const resultsLoaded = await waitForFlightResults(page);
-        if (!resultsLoaded) {
-            console.log('⚠️ Flight results did not load in time, taking screenshot');
-            const dir = path.resolve('screenshots');
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-            await page.screenshot({ path: `${dir}/skyscanner_${Date.now()}.png`, fullPage: true });
-        }
+        await waitForFlightResults(page);
 
         // Extract flight data
         const flightData = await page.evaluate(() => {
@@ -276,10 +320,10 @@ async function scrapeFlights({
 
             return {
                 url: result.querySelector('a') ? result.querySelector('a').href : null,
-                price: priceElement ? priceElement.innerText.trim().split('\n')[1].replace(/[^0-9]/g, '') : null,
+                price: priceElement ? priceElement.innerText?.trim().split('\n').pop()?.replace(/[^0-9]/g, '') : null,
                 airline: airlineElement ? airlineElement.innerText.trim() : null,
                 duration: durationElement ? durationElement.innerText.trim().replace(/[^\d]+/g, ' ').trim().split(' ').join(':') : null,
-                layovers: layoverElement ? layoverElement.innerText.trim().replace(/[^0-9]/g, '') : null
+                layovers: layoverElement ? layoverElement.innerText.trim().replace(/[^0-9]/g, '') || 0 : null
             };
         });
 
@@ -290,7 +334,7 @@ async function scrapeFlights({
         };
 
         // Cache the result for 24 hours
-        if (redisClient && output) {
+        if (redisClient && output.price) {
             try {
                 await redisClient.setex(url, 86400, JSON.stringify(output));
                 console.log('✅ Cached flight data for 24 hours');

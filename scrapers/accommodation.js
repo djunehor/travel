@@ -1,45 +1,37 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const UserAgent = require('user-agents');
-const fs = require('fs');
-const path = require('path');
+const Redis = require('ioredis');
+
+// --- Redis Setup ---
+let redis = null;
+
+function getRedisClient() {
+    if (!redis && process.env.REDIS_URL) {
+        try {
+            redis = new Redis(process.env.REDIS_URL, {
+                maxRetriesPerRequest: 3,
+                retryStrategy(times) {
+                    if (times > 3) return null;
+                    return Math.min(times * 200, 1000);
+                }
+            });
+
+            redis.on('error', (err) => {
+                console.warn('⚠️ Redis connection error:', err.message);
+                redis = null;
+            });
+
+            console.log('✅ Redis client initialized');
+        } catch (err) {
+            console.warn('⚠️ Failed to initialize Redis:', err.message);
+            redis = null;
+        }
+    }
+    return redis;
+}
 
 puppeteer.use(StealthPlugin());
-
-// --- Helper Functions ---
-function getDateRange(timeframe) {
-    const now = new Date();
-    
-    if (timeframe === 'next_week') {
-        now.setDate(now.getDate() + 7);
-    } else if (timeframe === 'tomorrow') {
-        now.setDate(now.getDate() + 1);
-    } else if (typeof timeframe === 'number') {
-        now.setDate(now.getDate() + timeframe);
-    } else {
-        // Default: tomorrow if invalid timeframe
-        now.setDate(now.getDate() + 1);
-    }
-    
-    // Safety check: ensure date is in the future
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (now <= today) {
-        console.warn('⚠️ Calculated date is in the past, using tomorrow instead');
-        now.setDate(today.getDate() + 1);
-    }
-    
-    return now;
-}
-
-function getDurationDays(duration) {
-    if (typeof duration === 'string' && duration.endsWith('d')) return parseInt(duration.replace('d', ''), 10);
-    return Number(duration) || 7;
-}
-
-function formatDate(date) {
-    return date.toISOString().split('T')[0];
-}
 
 async function launchBrowser() {
     return await puppeteer.launch({
@@ -62,19 +54,30 @@ async function closeCookieBanner(page) {
 }
 
 // --- Main Scraper ---
-async function scrapeAccommodation(destination, duration, adults, children) {
-    
+async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget, adults, children) {
+
     let browser;
     try {
-        const durationDays = getDurationDays(duration);
-        const checkIn = getDateRange('1-3-months');
-        const checkOut = new Date(checkIn.getTime() + durationDays * 24 * 60 * 60 * 1000);
+        const durationDays = (new Date(checkOutStr) - new Date(checkInStr)) / (1000 * 60 * 60 * 24);
+        console.log(`🏨 Scraping accommodation in ${destination} from ${checkInStr} to ${checkOutStr} for budget $${budget}`, durationDays);
+        const maxPricePerNight = Math.round(budget / durationDays);
+        console.log(`💰 Max price per night: $${maxPricePerNight.toFixed(2)}`);
 
-        const checkInStr = formatDate(checkIn);
-        const checkOutStr = formatDate(checkOut);
+        const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(destination)}&checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&chal_t=${Date.now()}&selected_currency=USD&order=price&nflt=price%3DUSD-min-${maxPricePerNight}-1`;
 
-        const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(destination)}&checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&chal_t=${Date.now()}&selected_currency=USD&order=price`;
-
+        // Check cache first
+        const redisClient = getRedisClient();
+        if (redisClient) {
+            try {
+                const cached = await redisClient.get(url);
+                if (cached) {
+                    console.log('✅ Returning cached accommodation data');
+                    return JSON.parse(cached);
+                }
+            } catch (err) {
+                console.warn('⚠️ Redis get error:', err.message);
+            }
+        }
         browser = await launchBrowser();
         const page = await browser.newPage();
 
@@ -107,19 +110,23 @@ async function scrapeAccommodation(destination, duration, adults, children) {
             };
         });
 
-        if (!hotelData?.url) {
-            const dir = path.resolve('screenshots');
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-            await page.screenshot({ path: `${dir}/booking_${Date.now()}.png`, fullPage: true });
-        }
-
         const result = {
             ...hotelData,
-            pricePerNight: hotelData.price ? parseFloat(parseInt(hotelData.price.replace(/[^0-9]/g, '')) / durationDays).toFixed(2) : null,
+            pricePerNight: hotelData?.price ? parseFloat(parseInt(hotelData.price.replace(/[^0-9]/g, '')) / durationDays).toFixed(2) : null,
             from: checkInStr,
             to: checkOutStr
         };
-        
+
+        // Cache the result for 24 hours
+        if (redisClient && result.price) {
+            try {
+                await redisClient.setex(url, 86400, JSON.stringify(result));
+                console.log('✅ Cached flight data for 24 hours');
+            } catch (err) {
+                console.warn('⚠️ Redis set error:', err.message);
+            }
+        }
+
         return result;
 
     } catch (error) {

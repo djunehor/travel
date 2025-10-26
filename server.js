@@ -9,13 +9,13 @@ const airportCodes = require('./country_airports.json');
 const countries = require('./countries.json');
 require('dotenv').config();
 const Redis = require('ioredis');
-   const budgetRanges = {
-        'under-500': { min: 0, max: 500 },
-        '500-1000': { min: 500, max: 1000 },
-        '1000-2000': { min: 1000, max: 2000 },
-        '2000-5000': { min: 2000, max: 5000 },
-        'over-5000': { min: 5000, max: 50000 }
-    };
+const budgetRanges = {
+    'under-500': { min: 0, max: 500 },
+    '500-1000': { min: 500, max: 1000 },
+    '1000-2000': { min: 1000, max: 2000 },
+    '2000-5000': { min: 2000, max: 5000 },
+    'over-5000': { min: 5000, max: 50000 }
+};
 
 // --- Redis Setup ---
 let redis = null;
@@ -121,10 +121,9 @@ app.post('/api/plan-vacation', async (req, res) => {
         saveDatabase();
 
         console.time(taskId)
-        processTask(taskId, req.body).catch(err => {
+        processTask(taskId, req.body).then(() => console.timeEnd(taskId)).catch(err => {
             console.error(`Error processing task ${taskId}:`, err);
             updateTaskStatus(taskId, 'failed', null, err.message);
-            console.timeEnd(taskId);
         });
 
         res.json({ taskId, status: 'pending' });
@@ -135,7 +134,7 @@ app.post('/api/plan-vacation', async (req, res) => {
 });
 
 // API: Get task
-app.get('/api/task/:taskId', (req, res) => {
+app.get('/api/task/:taskId', async (req, res) => {
     try {
         const { taskId } = req.params;
         const result = db.exec(`SELECT status, result_data, error_message FROM tasks WHERE id = ?`, [taskId]);
@@ -170,7 +169,7 @@ function updateTaskStatus(taskId, status, resultData = null, errorMessage = null
 
 // Background processing
 async function processTask(taskId, requestData, results = [], attempts = 0) {
-    const maxAttempts = 3;
+    const maxAttempts = 5;
 
     try {
         console.log(`Processing task ${taskId}...`, { attempts, maxAttempts });
@@ -181,7 +180,7 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
         destinations = destinations.filter(d => {
             // Exclude already processed destinations
             return results.map(r => r.name).indexOf(d.name) === -1;
-        }); 
+        });
         console.log('Destinations:', destinations.map((d, i) => `${i + 1}. ${d.name} - Budget: $${d.estimatedBudget}`));
         if (!destinations?.length) throw new Error('No suitable destinations found');
 
@@ -206,30 +205,41 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     children
                 });
                 if (!flightData?.price || Number(flightData.price) > budgetRanges[requestData.budget].max) {
-                    console.log(`Flight price ${flightData?.price} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                    console.log(`Flight price ${flightData?.price}`, departure.iata, '-', destination.airportCode, `exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
                     continue;
                 };
 
                 // Scrape accommodation
                 const accommodationData = await scrapeAccommodation(
                     destination.name,
-                    requestData.duration,
+                    flightData.departureDate,
+                    flightData.returnDate,
+                    budgetRanges[requestData.budget].max - Number(flightData.price),
                     adults,
                     children
                 );
                 if (!accommodationData || Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
-                    console.log(`Accommodation price ${accommodationData?.price} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                    console.log(`Accommodation price ${accommodationData?.price} for ${requestData.duration} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                    continue;
+                }
+
+                if(Number(flightData.price) + Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
+                    console.log(`Flight + Accommodation price ${Number(flightData.price) + Number(accommodationData.price.replace(/\D/g, ''))} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
                     continue;
                 }
 
                 // Scrape activities
                 const activitiesData = await scrapeActivities(
                     destination.name,
-                    requestData.duration
+                    flightData.departureDate,
+                    flightData.returnDate,
+                    budgetRanges[requestData.budget].max - Number(flightData.price) - (Number(accommodationData.price.replace(/\D/g, '')))
                 );
                 if (!activitiesData || activitiesData.totalPrice > budgetRanges[requestData.budget].max) {
                     console.log(`Activities total price ${activitiesData?.totalPrice} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
-                    continue;
+                    // continue;
+
+                    activitiesData = { activities: [], totalPrice: 0}
                 };
 
                 // Combine results
@@ -275,11 +285,13 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
         attempts++;
 
         if (results.length < 3) {
-            if(attempts < maxAttempts) {
+            if (attempts < maxAttempts) {
                 console.log(`No complete data retrieved, retrying (attempt ${attempts} of ${maxAttempts})...`);
                 return processTask(taskId, requestData, results, attempts);
             }
-            throw new Error('Could not retrieve complete data for any destination');
+            if (results.length === 0) {
+                throw new Error('Could not retrieve complete data for any destination');
+            }
         }
 
         // Sort by total cost
@@ -338,14 +350,14 @@ async function getDestinationSuggestions(requestData, noCache = false) {
 // Build prompt
 function buildDestinationPrompt(requestData) {
     const { travelers, budget, timeframe, duration, visaPreference, travelStyles } = requestData;
- 
+
     const budgetRange = budgetRanges[budget];
 
     const travelersInfo = travelers.map((t, i) =>
         `Traveler ${i + 1}: ${t.name}, nationality: ${countries.find((s) => s.code === t.nationality).name}, residence: ${countries.find((s) => s.code === t.residence).name}, existing visas/residence permit: ${t.visas.join(', ') || 'none'}`
     ).join('\n');
 
-    const prompt = `Suggest 10 suitable vacation destinations for the following travelers:
+    const prompt = `Suggest 15 suitable vacation destinations for the following travelers:
     TRAVELERS:
     ${travelersInfo}
     

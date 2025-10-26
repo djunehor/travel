@@ -1,8 +1,6 @@
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const UserAgent = require('user-agents');
-const fs = require('fs');
-const path = require('path');
 const Redis = require('ioredis');
 
 // --- Redis Setup ---
@@ -35,41 +33,6 @@ function getRedisClient() {
 
 puppeteer.use(StealthPlugin());
 
-// --- Helper Functions ---
-function getDateRange(timeframe) {
-    const now = new Date();
-    
-    if (timeframe === 'next_week') {
-        now.setDate(now.getDate() + 7);
-    } else if (timeframe === 'tomorrow') {
-        now.setDate(now.getDate() + 1);
-    } else if (typeof timeframe === 'number') {
-        now.setDate(now.getDate() + timeframe);
-    } else {
-        // Default: tomorrow if invalid timeframe
-        now.setDate(now.getDate() + 1);
-    }
-    
-    // Safety check: ensure date is in the future
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (now <= today) {
-        console.warn('⚠️ Calculated date is in the past, using tomorrow instead');
-        now.setDate(today.getDate() + 1);
-    }
-    
-    return now;
-}
-
-function getDurationDays(duration) {
-    if (typeof duration === 'string' && duration.endsWith('d')) return parseInt(duration.replace('d', ''), 10);
-    return Number(duration) || 7;
-}
-
-function formatDate(date) {
-    return date.toISOString().split('T')[0];
-}
-
 async function launchBrowser() {
     return await puppeteer.launch({
         headless: false,
@@ -90,17 +53,16 @@ async function closeCookieBanner(page) {
     } catch (e) { }
 }
 
-async function scrapeActivities(destination, duration) {
+async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
 
     let browser;
     try {
-        const durationDays = getDurationDays(duration);
-        const checkIn = getDateRange('1-3-months');
-        const checkOut = new Date(checkIn.getTime() + durationDays * 24 * 60 * 60 * 1000);
+        const durationDays = (new Date(checkOutStr) - new Date(checkInStr)) / (1000 * 60 * 60 * 24);
 
-        const checkInStr = formatDate(checkIn);
-        const checkOutStr = formatDate(checkOut);
-        const url = `https://www.getyourguide.com/s?q=${destination}&searchSource=3&src=search_bar&date_from=${checkInStr}&date_to=${checkOutStr}`;
+        const maxPrice = Math.round(budget / durationDays);
+        const minPrice = Math.max(0, Math.floor(maxPrice * 0.5));
+        console.log('🎟️ Scraping activities for:', destination, `Duration: ${durationDays} days`, { minPrice, maxPrice });
+        const url = `https://www.getyourguide.com/s?q=${destination}&searchSource=3&src=search_bar&date_from=${checkInStr}&date_to=${checkOutStr}&price_range=${minPrice}-${maxPrice}`;
 
         // Check cache first
         const redisClient = getRedisClient();
@@ -163,19 +125,13 @@ async function scrapeActivities(destination, duration) {
             return sum + (isNaN(price) ? 0 : price);
         }, 0);
 
-        if (!totalPrice || activities.length === 0) {
-            const dir = path.resolve('screenshots');
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-            await page.screenshot({ path: `${dir}/getyourguide_${Date.now()}.png`, fullPage: true });
-        }
-
         const result = {
             activities,
             totalPrice
         };
 
-            // Cache the result for 24 hours
-        if (redisClient && result) {
+        // Cache the result for 24 hours
+        if (redisClient && result.activities.length > 0) {
             try {
                 await redisClient.setex(url, 86400, JSON.stringify(result));
                 console.log('✅ Cached activities data for 24 hours');

@@ -532,7 +532,7 @@ async function submitForm() {
 }
 
 async function pollTaskStatus(taskId) {
-    const maxAttempts = 120; // 5 minutes max (60 * 5 seconds)
+    const maxAttempts = 60; // 5 minutes max (60 * 5 seconds)
     let attempts = 0;
 
     const poll = async () => {
@@ -570,7 +570,7 @@ async function pollTaskStatus(taskId) {
             } else if (result.status === 'pending' || result.status === 'processing') {
                 // Still processing, poll again
                 if (attempts < maxAttempts) {
-                    setTimeout(poll, 5000); // Poll every 5 seconds
+                    setTimeout(poll, 15000); // Poll every 5 seconds
                 } else {
                     loadingSpinner.classList.add('hidden');
                     alert('Request timed out. Please try again.');
@@ -579,12 +579,12 @@ async function pollTaskStatus(taskId) {
         } catch (error) {
             console.error('Error polling task:', error);
 
-            // if (attempts < maxAttempts) {
-            //     setTimeout(poll, 5000);
-            // } else {
-            loadingSpinner.classList.add('hidden');
-            alert('Failed to get results. Please try again.');
-            // }
+            if (attempts < maxAttempts) {
+                setTimeout(poll, 5000);
+            } else {
+                loadingSpinner.classList.add('hidden');
+                alert('Failed to get results. Please try again.');
+            }
         }
     };
 
