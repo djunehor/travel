@@ -87,10 +87,13 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
 
         await closeCookieBanner(page);
+        console.log(new Date().toLocaleString(),'Page title:', await page.title());
 
         // Wait for property card
         await page.waitForSelector('div[data-testid="property-card"]', { timeout: 10000 }).catch(() => {
             console.log(new Date().toLocaleString(),'⚠️ Timeout waiting for accommodation results');
+            // take screenshot for debugging
+            page.screenshot({ path: `screenshots/accommodation_${Date.now()}.png`, fullPage: true});
         });
 
         // Extract accommodation information
