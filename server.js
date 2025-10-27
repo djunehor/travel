@@ -51,7 +51,7 @@ function getRedisClient() {
                 redis = null;
             });
 
-            console.log(new Date().toLocaleString(),'✅ Redis client initialized');
+            console.log(new Date().toLocaleString(), '✅ Redis client initialized');
         } catch (err) {
             console.warn('⚠️ Failed to initialize Redis:', err.message);
             redis = null;
@@ -160,6 +160,17 @@ function updateTaskStatus(taskId, status, resultData = null, errorMessage = null
         [status, resultData ? JSON.stringify(resultData) : null, errorMessage, now, taskId]
     );
     saveDatabase();
+}
+
+async function cancelTask(taskId) {
+    const now = Date.now();
+    db.run(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status`, ['cancelled', now, taskId, 'pending']);
+    saveDatabase();
+
+    const redisClient = getRedisClient();
+    if (redisClient) {
+        await redisClient.set(`cancel:${taskId}`, '1', 'EX', 3600); // expire in 1 hour
+    }
 }
 
 // Helper to check if task is cancelled
@@ -351,7 +362,7 @@ async function getDestinationSuggestions(requestData, noCache = false) {
         try {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log(new Date().toLocaleString(),'✅ Returning cached destination data');
+                console.log(new Date().toLocaleString(), '✅ Returning cached destination data');
                 return JSON.parse(cached);
             }
         } catch (err) {
@@ -445,6 +456,8 @@ app.post('/api/plan-vacation', async (req, res) => {
         saveDatabase();
 
         console.time(taskId)
+        // cancel task if not done in 4 mins
+        setTimeout(() => cancelTask(taskId), 4 * 60 * 1000);
         processTask(taskId, req.body).then(() => console.timeEnd(taskId)).catch(err => {
             console.error(`Error processing task ${taskId}:`, err);
             updateTaskStatus(taskId, 'failed', null, err.message);
@@ -540,7 +553,7 @@ app.post('/api/task/:taskId/cancel', async (req, res) => {
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
 initDatabase().then(() => {
-    app.listen(PORT, () => console.log(new Date().toLocaleString(),`Server running on port ${PORT}`));
+    app.listen(PORT, () => console.log(new Date().toLocaleString(), `Server running on port ${PORT}`));
 }).catch(err => {
     console.error('Failed to initialize database:', err);
     process.exit(1);
