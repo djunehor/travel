@@ -1,5 +1,6 @@
 const { connect } = require('puppeteer-real-browser');
 const Redis = require('ioredis');
+const fs = require('fs');
 
 // --- Redis Setup ---
 let redis = null;
@@ -20,7 +21,7 @@ function getRedisClient() {
                 redis = null;
             });
 
-            console.log(new Date().toLocaleString(),'✅ Redis client initialized');
+            console.log(new Date().toLocaleString(), '✅ Redis client initialized');
         } catch (err) {
             console.warn('⚠️ Failed to initialize Redis:', err.message);
             redis = null;
@@ -133,7 +134,7 @@ async function closeCookieBanner(page) {
         const el = await page.$(selector);
         if (el) {
             await el.click();
-            console.log(new Date().toLocaleString(),'✅ Accepted cookies');
+            console.log(new Date().toLocaleString(), '✅ Accepted cookies');
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
     } catch (e) { }
@@ -145,7 +146,7 @@ async function closeLoginModal(page) {
         const el = await page.$(selector);
         if (el) {
             await el.click();
-            console.log(new Date().toLocaleString(),'✅ Closed login modal');
+            console.log(new Date().toLocaleString(), '✅ Closed login modal');
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
     } catch (e) { }
@@ -163,16 +164,16 @@ async function handleCaptchaLoop(page, originalUrl) {
             const originalUrlBase = new URL(originalUrl).origin + new URL(originalUrl).pathname;
 
             if (currentUrl !== originalUrlBase) {
-                console.log(new Date().toLocaleString(),'🔄 Returning to original URL after captcha');
+                console.log(new Date().toLocaleString(), '🔄 Returning to original URL after captcha');
                 await page.goto(originalUrl, { waitUntil: 'networkidle2' });
                 await closeCookieBanner(page);
                 continue;
             }
-            console.log(new Date().toLocaleString(),'✅ No captcha detected, proceeding...');
+            console.log(new Date().toLocaleString(), '✅ No captcha detected, proceeding...');
             break;
         }
 
-        console.log(new Date().toLocaleString(),'⚠️ Captcha detected, pressing and holding...');
+        console.log(new Date().toLocaleString(), '⚠️ Captcha detected, pressing and holding...');
 
         try {
             // Get captcha element position
@@ -189,7 +190,7 @@ async function handleCaptchaLoop(page, originalUrl) {
             }, selector);
 
             if (!bounds) {
-                console.log(new Date().toLocaleString(),'⚠️ Could not get captcha bounds');
+                console.log(new Date().toLocaleString(), '⚠️ Could not get captcha bounds');
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 continue;
             }
@@ -210,7 +211,7 @@ async function handleCaptchaLoop(page, originalUrl) {
             // Wait indefinitely for captcha to disappear
             try {
                 await page.waitForSelector(selector, { hidden: true, timeout: 0 });
-                console.log(new Date().toLocaleString(),'✅ Captcha cleared');
+                console.log(new Date().toLocaleString(), '✅ Captcha cleared');
             } catch (err) {
                 console.warn('⚠️ Error waiting for captcha to disappear:', err.message);
             }
@@ -240,14 +241,14 @@ async function waitForFlightResults(page, selector = 'ul[class*="FlightsResults_
 
         const flightExists = await page.$(selector);
         if (flightExists) {
-            console.log(new Date().toLocaleString(),'✅ Flight results found!');
+            console.log(new Date().toLocaleString(), '✅ Flight results found!');
             return true;
         }
 
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    console.log(new Date().toLocaleString(),'⚠️ Timeout waiting for flight results');
+    console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for flight results');
     return false;
 }
 
@@ -279,7 +280,7 @@ async function scrapeFlights({
         try {
             const cached = await redisClient.get(url);
             if (cached) {
-                console.log(new Date().toLocaleString(),'✅ Returning cached flight data');
+                console.log(new Date().toLocaleString(), '✅ Returning cached flight data');
                 return JSON.parse(cached);
             }
         } catch (err) {
@@ -296,14 +297,22 @@ async function scrapeFlights({
         browser = response.browser;
         page = response.page;
 
-        console.log(new Date().toLocaleString(),`Navigating to Skyscanner: ${url}`);
+        console.log(new Date().toLocaleString(), `Navigating to Skyscanner: ${url}`);
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
         await closeCookieBanner(page);
         await handleCaptchaLoop(page, page.url());
         await closeLoginModal(page);
 
-        await waitForFlightResults(page);
+        try {
+            await waitForFlightResults(page);
+        } catch (e) {
+            console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for flight results');
+
+            fs.writeFileSync(`/var/www/travel/html/flights_error_${Date.now()}.html`, await page.content());
+            // take screenshot for debugging
+            await page.screenshot({ path: `/var/www/travel/screenshots/flights_${Date.now()}.png`, fullPage: true });
+        };
 
         // Extract flight data
         const flightData = await page.evaluate(() => {
@@ -334,7 +343,7 @@ async function scrapeFlights({
         if (redisClient && output.price) {
             try {
                 await redisClient.setex(url, 86400, JSON.stringify(output));
-                console.log(new Date().toLocaleString(),'✅ Cached flight data for 24 hours');
+                console.log(new Date().toLocaleString(), '✅ Cached flight data for 24 hours');
             } catch (err) {
                 console.warn('⚠️ Redis set error:', err.message);
             }
@@ -348,7 +357,7 @@ async function scrapeFlights({
     } finally {
         if (browser) {
             await browser.close();
-            console.log(new Date().toLocaleString(),'🔒 Browser closed');
+            console.log(new Date().toLocaleString(), '🔒 Browser closed');
         }
     }
 }
