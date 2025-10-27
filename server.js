@@ -320,7 +320,7 @@ async function processTask(taskId, requestData) {
                         total: totalCost
                     },
                     flightDetails: flightData,
-                    accommodationSuggestion: `<a href="${accommodationData.url}" target="_blank">${accommodationData.name}</a><br>${accommodationData.address}<br>Rating: ${accommodationData.rating} (${accommodationData.reviews} reviews)<br>Price: ${accommodationData.price} (${accommodationData.pricePerNight} per night)<br>Perks: ${accommodationData.perks.join(', ')}<br><a href="${accommodationData.url}" target="_blank">View on Booking.com</a>`,
+                    accommodationSuggestion: `<a href="${accommodationData.url}" target="_blank">${accommodationData.name}</a><br>${accommodationData.address}<br>Rating: ${accommodationData.rating} (${accommodationData.reviews} reviews)<br>Price: ${accommodationData.price} (${accommodationData.pricePerNight} per night)<br>Perks: ${accommodationData.perks || ''}<br><a href="${accommodationData.url}" target="_blank">View on Booking.com</a>`,
                     topActivities: activitiesData.activities,
                     timeline: {
                         visaApplication: destination.visaTimeline,
