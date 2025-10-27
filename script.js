@@ -519,7 +519,7 @@ async function submitForm() {
         }
 
         const { taskId } = await response.json();
-        console.log('Task created:', taskId);
+        console.log(new Date().toLocaleString(),'Task created:', taskId);
 
         // Poll for results
         await pollTaskStatus(taskId);
@@ -567,7 +567,7 @@ async function pollTaskStatus(taskId) {
             }
 
             const result = await response.json();
-            console.log('Task status:', result.status);
+            console.log(new Date().toLocaleString(),'Task status:', result.status);
 
             // Display new logs
             if (result.logs && result.logs.length > 0) {

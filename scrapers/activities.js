@@ -22,7 +22,7 @@ function getRedisClient() {
                 redis = null;
             });
 
-            console.log('✅ Redis client initialized');
+            console.log(new Date().toLocaleString(),'✅ Redis client initialized');
         } catch (err) {
             console.warn('⚠️ Failed to initialize Redis:', err.message);
             redis = null;
@@ -47,7 +47,7 @@ async function closeCookieBanner(page) {
         const el = await page.$(selector);
         if (el) {
             await el.click();
-            console.log('✅ Accepted GetYourGuide cookies');
+            console.log(new Date().toLocaleString(),'✅ Accepted GetYourGuide cookies');
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
     } catch (e) { }
@@ -61,7 +61,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
 
         const maxPrice = Math.round(budget / durationDays);
         const minPrice = Math.min(1, Math.floor(maxPrice * 0.5));
-        console.log('🎟️ Scraping activities for:', destination, `Duration: ${durationDays} days`, { minPrice, maxPrice });
+        console.log(new Date().toLocaleString(),'🎟️ Scraping activities for:', destination, `Duration: ${durationDays} days`, { minPrice, maxPrice });
         const url = `https://www.getyourguide.com/s?q=${destination}&searchSource=3&src=search_bar&date_from=${checkInStr}&date_to=${checkOutStr}&price_range=${minPrice}-${maxPrice}&sort=price&order=asc`;
 
         // Check cache first
@@ -70,7 +70,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
             try {
                 const cached = await redisClient.get(url);
                 if (cached) {
-                    console.log('✅ Returning cached activities data');
+                    console.log(new Date().toLocaleString(),'✅ Returning cached activities data');
                     return JSON.parse(cached);
                 }
             } catch (err) {
@@ -83,7 +83,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         const userAgent = new UserAgent({ deviceCategory: 'desktop' });
         await page.setUserAgent(userAgent.toString());
 
-        console.log(`Navigating to GetYourGuide: ${url}`);
+        console.log(new Date().toLocaleString(),`Navigating to GetYourGuide: ${url}`);
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
 
         await closeCookieBanner(page);
@@ -91,7 +91,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         // Wait for activity cards
         const activitySelector = 'section div[class="activity-card-block activity-card-block--grid"]';
         await page.waitForSelector(activitySelector, { timeout: 25000 }).catch(() => {
-            console.log('⚠️ Timeout waiting for activity results');
+            console.log(new Date().toLocaleString(),'⚠️ Timeout waiting for activity results');
         });
 
         // Extract activities
@@ -134,7 +134,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         if (redisClient && result.activities.length > 0) {
             try {
                 await redisClient.setex(url, 86400, JSON.stringify(result));
-                console.log('✅ Cached activities data for 24 hours');
+                console.log(new Date().toLocaleString(),'✅ Cached activities data for 24 hours');
             } catch (err) {
                 console.warn('⚠️ Redis set error:', err.message);
             }

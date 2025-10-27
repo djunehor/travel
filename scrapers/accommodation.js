@@ -22,7 +22,7 @@ function getRedisClient() {
                 redis = null;
             });
 
-            console.log('✅ Redis client initialized');
+            console.log(new Date().toLocaleString(),'✅ Redis client initialized');
         } catch (err) {
             console.warn('⚠️ Failed to initialize Redis:', err.message);
             redis = null;
@@ -47,7 +47,7 @@ async function closeCookieBanner(page) {
         const el = await page.$(selector);
         if (el) {
             await el.click();
-            console.log('✅ Accepted Booking.com cookies');
+            console.log(new Date().toLocaleString(),'✅ Accepted Booking.com cookies');
             await new Promise(resolve => setTimeout(resolve, 1000)); // wait for any potential navigation
         }
     } catch (e) { }
@@ -59,9 +59,9 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
     let browser;
     try {
         const durationDays = (new Date(checkOutStr) - new Date(checkInStr)) / (1000 * 60 * 60 * 24);
-        console.log(`🏨 Scraping accommodation in ${destination} from ${checkInStr} to ${checkOutStr} for budget $${budget}`, durationDays);
+        console.log(new Date().toLocaleString(),`🏨 Scraping accommodation in ${destination} from ${checkInStr} to ${checkOutStr} for budget $${budget}`, durationDays);
         const maxPricePerNight = Math.round(budget / durationDays);
-        console.log(`💰 Max price per night: $${maxPricePerNight.toFixed(2)}`);
+        console.log(new Date().toLocaleString(),`💰 Max price per night: $${maxPricePerNight.toFixed(2)}`);
 
         const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(destination)}&checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&chal_t=${Date.now()}&selected_currency=USD&order=price&nflt=price%3DUSD-min-${maxPricePerNight}-1`;
 
@@ -71,7 +71,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
             try {
                 const cached = await redisClient.get(url);
                 if (cached) {
-                    console.log('✅ Returning cached accommodation data');
+                    console.log(new Date().toLocaleString(),'✅ Returning cached accommodation data');
                     return JSON.parse(cached);
                 }
             } catch (err) {
@@ -84,14 +84,14 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         const userAgent = new UserAgent({ deviceCategory: 'desktop' });
         await page.setUserAgent(userAgent.toString());
 
-        console.log(`Navigating to Booking.com: ${url}`);
+        console.log(new Date().toLocaleString(),`Navigating to Booking.com: ${url}`);
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
 
         await closeCookieBanner(page);
 
         // Wait for property card
         await page.waitForSelector('div[data-testid="property-card"]', { timeout: 30000 }).catch(() => {
-            console.log('⚠️ Timeout waiting for accommodation results');
+            console.log(new Date().toLocaleString(),'⚠️ Timeout waiting for accommodation results');
         });
 
         // Extract accommodation information
@@ -121,7 +121,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         if (redisClient && result.price) {
             try {
                 await redisClient.setex(url, 86400, JSON.stringify(result));
-                console.log('✅ Cached flight data for 24 hours');
+                console.log(new Date().toLocaleString(),'✅ Cached flight data for 24 hours');
             } catch (err) {
                 console.warn('⚠️ Redis set error:', err.message);
             }

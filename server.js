@@ -51,7 +51,7 @@ function getRedisClient() {
                 redis = null;
             });
 
-            console.log('✅ Redis client initialized');
+            console.log(new Date().toLocaleString(),'✅ Redis client initialized');
         } catch (err) {
             console.warn('⚠️ Failed to initialize Redis:', err.message);
             redis = null;
@@ -351,7 +351,7 @@ async function getDestinationSuggestions(requestData, noCache = false) {
         try {
             const cached = await redisClient.get(cacheKey);
             if (cached) {
-                console.log('✅ Returning cached destination data');
+                console.log(new Date().toLocaleString(),'✅ Returning cached destination data');
                 return JSON.parse(cached);
             }
         } catch (err) {
@@ -377,7 +377,7 @@ async function getDestinationSuggestions(requestData, noCache = false) {
     if (redisClient && result?.destinations) {
         try {
             await redisClient.setex(cacheKey, 3600, JSON.stringify(result.destinations));
-            // console.log('✅ Cached destination data for 1 hour');
+            // console.log(new Date().toLocaleString(),'✅ Cached destination data for 1 hour');
         } catch (err) {
             console.warn('⚠️ Redis set error:', err.message);
         }
@@ -540,7 +540,7 @@ app.post('/api/task/:taskId/cancel', async (req, res) => {
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
 initDatabase().then(() => {
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    app.listen(PORT, () => console.log(new Date().toLocaleString(),`Server running on port ${PORT}`));
 }).catch(err => {
     console.error('Failed to initialize database:', err);
     process.exit(1);
