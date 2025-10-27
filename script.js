@@ -2,7 +2,7 @@
 let currentStep = 1;
 let totalSteps = 8;
 let travelers = [];
-const baseUrl = 'https://9a702f23b215.ngrok-free.app';
+const baseUrl = 'http://138.68.3.186';
 
 const form = document.getElementById('vacationForm');
 const prevBtn = document.getElementById('prevBtn');

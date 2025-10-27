@@ -20,6 +20,21 @@ const budgetRanges = {
 // --- Redis Setup ---
 let redis = null;
 
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// OpenAI client
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Database
+let db;
+const dbPath = path.join(__dirname, 'vacation_planner.db');
+
 function getRedisClient() {
     if (!redis && process.env.REDIS_URL) {
         try {
@@ -45,20 +60,7 @@ function getRedisClient() {
     return redis;
 }
 
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-
-// OpenAI client
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Database
-let db;
-const dbPath = path.join(__dirname, 'vacation_planner.db');
+const redisClient = getRedisClient();
 
 async function initDatabase() {
     const SQL = await initSqlJs();
@@ -151,76 +153,6 @@ function calculateBookingDeadline(timeframe) {
     return map[timeframe] || '2 weeks before departure';
 }
 
-// API: Create task
-app.post('/api/plan-vacation', async (req, res) => {
-    try {
-        const taskId = generateTaskId();
-        const now = Date.now();
-
-        db.run(
-            `INSERT INTO tasks (id, status, request_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-            [taskId, 'pending', JSON.stringify(req.body), now, now]
-        );
-        saveDatabase();
-
-        console.time(taskId)
-        processTask(taskId, req.body).then(() => console.timeEnd(taskId)).catch(err => {
-            console.error(`Error processing task ${taskId}:`, err);
-            updateTaskStatus(taskId, 'failed', null, err.message);
-        });
-
-        res.json({ taskId, status: 'pending' });
-    } catch (err) {
-        console.error('Error creating task:', err);
-        res.status(500).json({ error: 'Failed to create task' });
-    }
-});
-
-// API: Get task
-app.get('/api/task/:taskId', async (req, res) => {
-    try {
-        const { taskId } = req.params;
-        const { timestamp } = req.query;
-
-        const result = db.exec(`SELECT status, result_data, error_message FROM tasks WHERE id = ?`, [taskId]);
-
-        if (!result.length || !result[0].values.length) return res.status(404).json({ error: 'Task not found' });
-
-        const [status, resultData, errorMessage] = result[0].values[0];
-        const response = { taskId, status };
-
-        if (status === 'completed' && resultData) response.data = JSON.parse(resultData);
-        if (status === 'failed' && errorMessage) response.error = errorMessage;
-
-        // Fetch logs
-        let logsQuery = `SELECT message, timestamp FROM task_logs WHERE task_id = ?`;
-        let logsParams = [taskId];
-
-        if (timestamp) {
-            logsQuery += ` AND timestamp > ?`;
-            logsParams.push(parseInt(timestamp, 10));
-        }
-
-        logsQuery += ` ORDER BY timestamp ASC`;
-
-        const logsResult = db.exec(logsQuery, logsParams);
-        const logs = logsResult.length && logsResult[0].values.length
-            ? logsResult[0].values.map(([message, ts]) => ({ message, timestamp: ts }))
-            : [];
-
-        response.logs = logs;
-
-        res.json(response);
-    } catch (err) {
-        console.error('Error fetching task:', err);
-        res.status(500).json({ error: 'Failed to fetch task' });
-    }
-});
-
-app.get('/api/airports', (_, res) => {
-    res.json(airportCodes);
-});
-
 function updateTaskStatus(taskId, status, resultData = null, errorMessage = null) {
     const now = Date.now();
     db.run(
@@ -230,6 +162,26 @@ function updateTaskStatus(taskId, status, resultData = null, errorMessage = null
     saveDatabase();
 }
 
+// Helper to check if task is cancelled
+async function checkCancelled() {
+    // Redis check
+    if (redisClient) {
+        const cancelled = await redisClient.get(`cancel:${taskId}`);
+        if (cancelled) {
+            logTaskProgress(taskId, 'Task aborted by user (Redis)');
+            updateTaskStatus(taskId, 'cancelled');
+            return true;
+        }
+    }
+    // DB check fallback
+    const statusCheck = db.exec(`SELECT status FROM tasks WHERE id = ?`, [taskId]);
+    if (statusCheck.length && statusCheck[0].values.length && statusCheck[0].values[0][0] === 'cancelled') {
+        logTaskProgress(taskId, 'Task aborted by user (DB)');
+        return true;
+    }
+    return false;
+}
+
 // Background processing
 async function processTask(taskId, requestData, results = [], attempts = 0) {
     const maxAttempts = 3;
@@ -237,11 +189,17 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
     try {
         logTaskProgress(taskId, `Processing task (attempt ${attempts + 1} of ${maxAttempts})`);
 
-        // Step 1: Get destination suggestions from LLM
+        // Step 1: Check for cancellation
+        if (await checkCancelled()) return;
+
+        // Step 2: Get destination suggestions from LLM
         logTaskProgress(taskId, 'Getting destination suggestions from LLM');
         let destinations = await getDestinationSuggestions(requestData, attempts > 0);
+
+        // Cancellation check after LLM call
+        if (await checkCancelled()) return;
+
         destinations = destinations.filter(d => {
-            // Exclude already processed destinations
             return results.map(r => r.name).indexOf(d.name) === -1;
         });
 
@@ -249,28 +207,28 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
 
         logTaskProgress(taskId, `Found ${destinations.length} potential destinations`);
 
-
-        // Step 2: Scrape data for each destination and departure airport
+        // Step 3: Scrape data for each destination and departure airport
         for (const destination of destinations) {
+            if (await checkCancelled()) return;
+
             if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) {
                 logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
                 break;
             }
 
             const departure = airportCodes.find((s) => s.iata === requestData.departureCountry);
-
-            if(!departure.iata) {
+            if (!departure?.iata) {
                 logTaskProgress(taskId, `Invalid departure airport code: ${requestData.departureCountry}`);
                 continue;
             }
 
             try {
-                logTaskProgress(taskId, `Sourcing flight data for ${destination.name}`);
+                if (await checkCancelled()) return;
 
+                logTaskProgress(taskId, `Sourcing flight data for ${destination.name}`);
                 const adults = requestData.travelers.filter(t => t.type === 'adult').length;
                 const children = requestData.travelers.length - adults;
 
-                // Scrape flights
                 const flightData = await scrapeFlights({
                     departureAirport: departure.iata,
                     destinationAirport: destination.airportCode,
@@ -279,13 +237,17 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     adults,
                     children
                 });
+
+                if (await checkCancelled()) return;
+
                 if (!flightData?.price || Number(flightData.price) > budgetRanges[requestData.budget].max) {
                     logTaskProgress(taskId, `Skipped ${destination.name}: Flight price exceeds budget`);
                     continue;
-                };
+                }
                 logTaskProgress(taskId, `Flight found for ${destination.name} at $${flightData.price}`);
 
-                // Scrape accommodation
+                // Accommodation
+                if (await checkCancelled()) return;
                 logTaskProgress(taskId, `Sourcing accommodation data for ${destination.name}`);
                 const accommodationData = await scrapeAccommodation(
                     destination.name,
@@ -295,6 +257,9 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     adults,
                     children
                 );
+
+                if (await checkCancelled()) return;
+
                 if (!accommodationData?.price || Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
                     logTaskProgress(taskId, `Skipped ${destination.name}: Accommodation price exceeds budget`);
                     continue;
@@ -306,17 +271,21 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     continue;
                 }
 
-                // Scrape activities
+                // Activities
+                if (await checkCancelled()) return;
                 logTaskProgress(taskId, `Sourcing activities data for ${destination.name}`);
-                const activitiesData = await scrapeActivities(
+                let activitiesData = await scrapeActivities(
                     destination.name,
                     flightData.departureDate,
                     flightData.returnDate,
-                    budgetRanges[requestData.budget].max - Number(flightData.price) - (Number(accommodationData.price.replace(/\D/g, '')))
+                    budgetRanges[requestData.budget].max - Number(flightData.price) - Number(accommodationData.price.replace(/\D/g, ''))
                 );
+
+                if (await checkCancelled()) return;
+
                 if (!activitiesData?.totalPrice || activitiesData.totalPrice > budgetRanges[requestData.budget].max) {
                     activitiesData = { activities: [], totalPrice: 0 };
-                };
+                }
                 logTaskProgress(taskId, `Activities found for ${destination.name} totaling $${activitiesData.totalPrice}`);
 
                 // Combine results
@@ -353,10 +322,9 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                 logTaskProgress(taskId, `Successfully scraped ${destination.name} (total cost: $${totalCost})`);
 
             } catch (err) {
-                logTaskProgress(taskId, `Error Sourcing flight data for ${destination.name}: ${err.message}`);
+                logTaskProgress(taskId, `Error sourcing data for ${destination.name}: ${err.message}`);
                 continue;
             }
-
         }
 
         attempts++;
@@ -366,16 +334,16 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                 logTaskProgress(taskId, `No complete data retrieved, retrying...`);
                 return processTask(taskId, requestData, results, attempts);
             }
-            if (results.length === 0) {
-                throw new Error('Could not retrieve complete data for any destination');
-            }
+            if (results.length === 0) throw new Error('Could not retrieve complete data for any destination');
         }
 
         // Sort by total cost
         results.sort((a, b) => a.estimatedCost.total - b.estimatedCost.total);
         updateTaskStatus(taskId, 'completed', { destinations: results });
         logTaskProgress(taskId, `Task completed with ${results.length} destinations`);
+
     } catch (err) {
+        if ((await checkCancelled())) return;
         logTaskProgress(taskId, `Task failed: ${err.message}`);
         updateTaskStatus(taskId, 'failed', null, err.message);
     }
@@ -470,6 +438,110 @@ function buildDestinationPrompt(requestData) {
 
     return prompt;
 }
+
+// API: Create task
+app.post('/api/plan-vacation', async (req, res) => {
+    try {
+        const taskId = generateTaskId();
+        const now = Date.now();
+
+        db.run(
+            `INSERT INTO tasks (id, status, request_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+            [taskId, 'pending', JSON.stringify(req.body), now, now]
+        );
+        saveDatabase();
+
+        console.time(taskId)
+        processTask(taskId, req.body).then(() => console.timeEnd(taskId)).catch(err => {
+            console.error(`Error processing task ${taskId}:`, err);
+            updateTaskStatus(taskId, 'failed', null, err.message);
+        });
+
+        res.json({ taskId, status: 'pending' });
+    } catch (err) {
+        console.error('Error creating task:', err);
+        res.status(500).json({ error: 'Failed to create task' });
+    }
+});
+
+// API: Get task
+app.get('/api/task/:taskId', async (req, res) => {
+    try {
+        const { taskId } = req.params;
+        const { timestamp } = req.query;
+
+        const result = db.exec(`SELECT status, result_data, error_message FROM tasks WHERE id = ?`, [taskId]);
+
+        if (!result.length || !result[0].values.length) return res.status(404).json({ error: 'Task not found' });
+
+        const [status, resultData, errorMessage] = result[0].values[0];
+        const response = { taskId, status };
+
+        if (status === 'completed' && resultData) response.data = JSON.parse(resultData);
+        if (status === 'failed' && errorMessage) response.error = errorMessage;
+
+        // Fetch logs
+        let logsQuery = `SELECT message, timestamp FROM task_logs WHERE task_id = ?`;
+        let logsParams = [taskId];
+
+        if (timestamp) {
+            logsQuery += ` AND timestamp > ?`;
+            logsParams.push(parseInt(timestamp, 10));
+        }
+
+        logsQuery += ` ORDER BY timestamp ASC`;
+
+        const logsResult = db.exec(logsQuery, logsParams);
+        const logs = logsResult.length && logsResult[0].values.length
+            ? logsResult[0].values.map(([message, ts]) => ({ message, timestamp: ts }))
+            : [];
+
+        response.logs = logs;
+
+        res.json(response);
+    } catch (err) {
+        console.error('Error fetching task:', err);
+        res.status(500).json({ error: 'Failed to fetch task' });
+    }
+});
+
+app.get('/api/airports', (_, res) => {
+    res.json(airportCodes);
+});
+
+// API: Cancel task
+app.post('/api/task/:taskId/cancel', async (req, res) => {
+    try {
+        const { taskId } = req.params;
+
+        const taskResult = db.exec(`SELECT status FROM tasks WHERE id = ?`, [taskId]);
+        if (!taskResult.length || !taskResult[0].values.length) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+
+        const [status] = taskResult[0].values[0];
+        if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+            return res.status(400).json({ error: `Cannot cancel a task with status ${status}` });
+        }
+
+        // Update status to cancelled
+        const now = Date.now();
+        db.run(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`, ['cancelled', now, taskId]);
+        saveDatabase();
+
+        // Optional: set a Redis flag so the running process can stop early
+        const redisClient = getRedisClient();
+        if (redisClient) {
+            await redisClient.set(`cancel:${taskId}`, '1', 'EX', 3600); // expire in 1 hour
+        }
+
+        res.json({ taskId, status: 'cancelled' });
+    } catch (err) {
+        console.error('Error cancelling task:', err);
+        res.status(500).json({ error: 'Failed to cancel task' });
+    }
+});
+
 
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
