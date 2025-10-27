@@ -63,7 +63,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         const maxPricePerNight = Math.round(budget / durationDays);
         console.log(new Date().toLocaleString(),`💰 Max price per night: $${maxPricePerNight.toFixed(2)}`);
 
-        const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(destination)}&checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&chal_t=${Date.now()}&selected_currency=USD&order=price&nflt=price%3DUSD-min-${maxPricePerNight}-1`;
+        const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(destination)}&checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&selected_currency=USD&order=price&nflt=price%3DUSD-min-${maxPricePerNight}-1`;
 
         // Check cache first
         const redisClient = getRedisClient();
@@ -85,12 +85,12 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         await page.setUserAgent(userAgent.toString());
 
         console.log(new Date().toLocaleString(),`Navigating to Booking.com: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
+        await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
 
         await closeCookieBanner(page);
 
         // Wait for property card
-        await page.waitForSelector('div[data-testid="property-card"]', { timeout: 30000 }).catch(() => {
+        await page.waitForSelector('div[data-testid="property-card"]', { timeout: 10000 }).catch(() => {
             console.log(new Date().toLocaleString(),'⚠️ Timeout waiting for accommodation results');
         });
 
