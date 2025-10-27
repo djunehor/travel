@@ -1,5 +1,6 @@
 const { connect } = require('puppeteer-real-browser');
 const Redis = require('ioredis');
+const fs = require('fs');
 
 // --- Redis Setup ---
 let redis = null;
@@ -90,11 +91,14 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         console.log(new Date().toLocaleString(),'Page title:', await page.title());
 
         // Wait for property card
-        await page.waitForSelector('div[data-testid="property-card"]', { timeout: 10000 }).catch(() => {
+        try {
+            await page.waitForSelector('div[data-testid="property-card"]', { timeout: 120 * 1000 })
+        } catch(e) {
             console.log(new Date().toLocaleString(),'⚠️ Timeout waiting for accommodation results');
+            fs.writeFileSync(`html/accommodation_error_${Date.now()}.html`, await page.content());
             // take screenshot for debugging
-            page.screenshot({ path: `screenshots/accommodation_${Date.now()}.png`, fullPage: true});
-        });
+            await page.screenshot({ path: `screenshots/accommodation_${Date.now()}.png`, fullPage: true });
+        };
 
         // Extract accommodation information
         const hotelData = await page.evaluate(() => {
