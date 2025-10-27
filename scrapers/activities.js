@@ -35,7 +35,7 @@ puppeteer.use(StealthPlugin());
 
 async function launchBrowser() {
     return await puppeteer.launch({
-        headless: false,
+          headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
         defaultViewport: { width: 1366, height: 768 }
     });
@@ -48,7 +48,7 @@ async function closeCookieBanner(page) {
         if (el) {
             await el.click();
             console.log('✅ Accepted GetYourGuide cookies');
-            await page.waitForTimeout(1000);
+            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     } catch (e) { }
 }
@@ -84,13 +84,13 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         await page.setUserAgent(userAgent.toString());
 
         console.log(`Navigating to GetYourGuide: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
 
         await closeCookieBanner(page);
 
         // Wait for activity cards
         const activitySelector = 'section div[class="activity-card-block activity-card-block--grid"]';
-        await page.waitForSelector(activitySelector, { timeout: 10000 }).catch(() => {
+        await page.waitForSelector(activitySelector, { timeout: 25000 }).catch(() => {
             console.log('⚠️ Timeout waiting for activity results');
         });
 

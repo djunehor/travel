@@ -1,7 +1,4 @@
 const { connect } = require('puppeteer-real-browser');
-const UserAgent = require('user-agents');
-const fs = require('fs');
-const path = require('path');
 const Redis = require('ioredis');
 
 // --- Redis Setup ---

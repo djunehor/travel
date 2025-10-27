@@ -35,7 +35,7 @@ puppeteer.use(StealthPlugin());
 
 async function launchBrowser() {
     return await puppeteer.launch({
-        headless: false,
+        headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
         defaultViewport: { width: 1366, height: 768 }
     });
@@ -48,7 +48,7 @@ async function closeCookieBanner(page) {
         if (el) {
             await el.click();
             console.log('✅ Accepted Booking.com cookies');
-            await page.waitForTimeout(1000);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // wait for any potential navigation
         }
     } catch (e) { }
 }
@@ -85,12 +85,12 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         await page.setUserAgent(userAgent.toString());
 
         console.log(`Navigating to Booking.com: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
 
         await closeCookieBanner(page);
 
         // Wait for property card
-        await page.waitForSelector('div[data-testid="property-card"]', { timeout: 15000 }).catch(() => {
+        await page.waitForSelector('div[data-testid="property-card"]', { timeout: 30000 }).catch(() => {
             console.log('⚠️ Timeout waiting for accommodation results');
         });
 
@@ -135,12 +135,6 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
     } finally {
         if (browser) await browser.close();
     }
-}
-
-// --- Run standalone ---
-if (require.main === module) {
-    scrapeAccommodation('New York, USA', '7', 2, 0);
-
 }
 
 module.exports = scrapeAccommodation;

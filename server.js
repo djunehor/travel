@@ -4,11 +4,11 @@ const { OpenAI } = require('openai');
 const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
-const { scrapeAccommodation, scrapeActivities, scrapeFlights } = require('./scrapers');
 const airportCodes = require('./country_airports.json');
 const countries = require('./countries.json');
 require('dotenv').config();
 const Redis = require('ioredis');
+const { scrapeAccommodation, scrapeActivities, scrapeFlights } = require('./scrapers');
 const budgetRanges = {
     'under-500': { min: 0, max: 500 },
     '500-1000': { min: 500, max: 1000 },
@@ -163,7 +163,7 @@ function updateTaskStatus(taskId, status, resultData = null, errorMessage = null
 }
 
 // Helper to check if task is cancelled
-async function checkCancelled() {
+async function checkCancelled(taskId) {
     // Redis check
     if (redisClient) {
         const cancelled = await redisClient.get(`cancel:${taskId}`);
@@ -190,14 +190,14 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
         logTaskProgress(taskId, `Processing task (attempt ${attempts + 1} of ${maxAttempts})`);
 
         // Step 1: Check for cancellation
-        if (await checkCancelled()) return;
+        if (await checkCancelled(taskId)) return;
 
         // Step 2: Get destination suggestions from LLM
         logTaskProgress(taskId, 'Getting destination suggestions from LLM');
         let destinations = await getDestinationSuggestions(requestData, attempts > 0);
 
         // Cancellation check after LLM call
-        if (await checkCancelled()) return;
+        if (await checkCancelled(taskId)) return;
 
         destinations = destinations.filter(d => {
             return results.map(r => r.name).indexOf(d.name) === -1;
@@ -209,7 +209,7 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
 
         // Step 3: Scrape data for each destination and departure airport
         for (const destination of destinations) {
-            if (await checkCancelled()) return;
+            if (await checkCancelled(taskId)) return;
 
             if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) {
                 logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
@@ -223,7 +223,7 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
             }
 
             try {
-                if (await checkCancelled()) return;
+                if (await checkCancelled(taskId)) return;
 
                 logTaskProgress(taskId, `Sourcing flight data for ${destination.name}`);
                 const adults = requestData.travelers.filter(t => t.type === 'adult').length;
@@ -238,7 +238,7 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     children
                 });
 
-                if (await checkCancelled()) return;
+                if (await checkCancelled(taskId)) return;
 
                 if (!flightData?.price || Number(flightData.price) > budgetRanges[requestData.budget].max) {
                     logTaskProgress(taskId, `Skipped ${destination.name}: Flight price exceeds budget`);
@@ -247,7 +247,7 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                 logTaskProgress(taskId, `Flight found for ${destination.name} at $${flightData.price}`);
 
                 // Accommodation
-                if (await checkCancelled()) return;
+                if (await checkCancelled(taskId)) return;
                 logTaskProgress(taskId, `Sourcing accommodation data for ${destination.name}`);
                 const accommodationData = await scrapeAccommodation(
                     destination.name,
@@ -258,7 +258,7 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     children
                 );
 
-                if (await checkCancelled()) return;
+                if (await checkCancelled(taskId)) return;
 
                 if (!accommodationData?.price || Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
                     logTaskProgress(taskId, `Skipped ${destination.name}: Accommodation price exceeds budget`);
@@ -272,7 +272,7 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                 }
 
                 // Activities
-                if (await checkCancelled()) return;
+                if (await checkCancelled(taskId)) return;
                 logTaskProgress(taskId, `Sourcing activities data for ${destination.name}`);
                 let activitiesData = await scrapeActivities(
                     destination.name,
@@ -281,7 +281,7 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     budgetRanges[requestData.budget].max - Number(flightData.price) - Number(accommodationData.price.replace(/\D/g, ''))
                 );
 
-                if (await checkCancelled()) return;
+                if (await checkCancelled(taskId)) return;
 
                 if (!activitiesData?.totalPrice || activitiesData.totalPrice > budgetRanges[requestData.budget].max) {
                     activitiesData = { activities: [], totalPrice: 0 };
@@ -343,7 +343,7 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
         logTaskProgress(taskId, `Task completed with ${results.length} destinations`);
 
     } catch (err) {
-        if ((await checkCancelled())) return;
+        if ((await checkCancelled(taskId))) return;
         logTaskProgress(taskId, `Task failed: ${err.message}`);
         updateTaskStatus(taskId, 'failed', null, err.message);
     }
