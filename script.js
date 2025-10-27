@@ -606,7 +606,17 @@ async function pollTaskStatus(taskId) {
                     setTimeout(poll, 5000);
                 } else {
                     loadingSpinner.classList.add('hidden');
+
+                    // cancel the task on the server
+                    fetch(`${baseUrl}/api/task/${taskId}/cancel`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'ngrok-skip-browser-warning': 'true'
+                        }
+                    });
                     alert('Request timed out. Please try again later.');
+
                 }
             }
         } catch (error) {
@@ -616,6 +626,15 @@ async function pollTaskStatus(taskId) {
                 setTimeout(poll, 5000);
             } else {
                 loadingSpinner.classList.add('hidden');
+
+                // cacnel the task on the server
+                fetch(`${baseUrl}/api/task/${taskId}/cancel`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
                 alert('Failed to get results. Please try again.');
             }
         }
