@@ -99,9 +99,9 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
             await page.waitForSelector('div[data-testid="property-card"]', { timeout: 120 * 1000 })
         } catch(e) {
             console.log(new Date().toLocaleString(),'⚠️ Timeout waiting for accommodation results');
-            fs.writeFileSync(`/var/www/travel/html/accommodation_error_${Date.now()}.html`, await page.content());
+            fs.writeFileSync(`${process.cwd()}/html/accommodation_error_${Date.now()}.html`, await page.content());
             // take screenshot for debugging
-            await page.screenshot({ path: `/var/www/travel/screenshots/accommodation_${Date.now()}.png`, fullPage: true });
+            await page.screenshot({ path: `${process.cwd()}/screenshots/accommodation_${Date.now()}.png`, fullPage: true });
         };
 
         // Extract accommodation information
