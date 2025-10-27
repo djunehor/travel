@@ -168,7 +168,7 @@ async function checkCancelled(taskId) {
     if (redisClient) {
         const cancelled = await redisClient.get(`cancel:${taskId}`);
         if (cancelled) {
-            logTaskProgress(taskId, 'Task aborted by user (Redis)');
+            logTaskProgress(taskId, 'Task aborted by user - soft');
             updateTaskStatus(taskId, 'cancelled');
             return true;
         }
@@ -176,25 +176,24 @@ async function checkCancelled(taskId) {
     // DB check fallback
     const statusCheck = db.exec(`SELECT status FROM tasks WHERE id = ?`, [taskId]);
     if (statusCheck.length && statusCheck[0].values.length && statusCheck[0].values[0][0] === 'cancelled') {
-        logTaskProgress(taskId, 'Task aborted by user (DB)');
+        logTaskProgress(taskId, 'Task aborted by user - hard');
         return true;
     }
     return false;
 }
 
 // Background processing
-async function processTask(taskId, requestData, results = [], attempts = 0) {
-    const maxAttempts = 3;
-
+async function processTask(taskId, requestData) {
+    const results = [];
     try {
-        logTaskProgress(taskId, `Processing task (attempt ${attempts + 1} of ${maxAttempts})`);
+        logTaskProgress(taskId, `Processing task ${taskId}`);
 
         // Step 1: Check for cancellation
         if (await checkCancelled(taskId)) return;
 
         // Step 2: Get destination suggestions from LLM
         logTaskProgress(taskId, 'Getting destination suggestions from LLM');
-        let destinations = await getDestinationSuggestions(requestData, attempts > 0);
+        let destinations = await getDestinationSuggestions(requestData);
 
         // Cancellation check after LLM call
         if (await checkCancelled(taskId)) return;
@@ -327,14 +326,8 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
             }
         }
 
-        attempts++;
-
         if (results.length < 1) {
-            if (attempts < maxAttempts) {
-                logTaskProgress(taskId, `No complete data retrieved, retrying...`);
-                return processTask(taskId, requestData, results, attempts);
-            }
-            if (results.length === 0) throw new Error('Could not retrieve complete data for any destination');
+            throw new Error('Could not retrieve complete data for any destination');
         }
 
         // Sort by total cost
