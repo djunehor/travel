@@ -29,8 +29,6 @@ function getRedisClient() {
     return redis;
 }
 
-puppeteer.use(StealthPlugin());
-
 async function launchBrowser() {
     return await connect({
            headless: false,
