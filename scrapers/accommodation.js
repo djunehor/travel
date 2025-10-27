@@ -88,7 +88,11 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
 
         await closeCookieBanner(page);
-        console.log(new Date().toLocaleString(),'Page title:', await page.title());
+        await page.evaluate(() => {
+            const dismissBtn = document.querySelector('button[aria-label="Dismiss sign-in info."]');
+            if (dismissBtn) dismissBtn.click();
+        });
+        console.log(new Date().toLocaleString(), process.cwd(), 'Page title:', await page.title());
 
         // Wait for property card
         try {
