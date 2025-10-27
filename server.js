@@ -164,7 +164,7 @@ function updateTaskStatus(taskId, status, resultData = null, errorMessage = null
 
 async function cancelTask(taskId) {
     const now = Date.now();
-    db.run(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status`, ['cancelled', now, taskId, 'pending']);
+    db.run(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = ?`, ['cancelled', now, taskId, 'pending']);
     saveDatabase();
 
     const redisClient = getRedisClient();
