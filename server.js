@@ -406,7 +406,7 @@ function buildDestinationPrompt(requestData) {
         `Traveler ${i + 1}: ${t.name}, nationality: ${countries.find((s) => s.code === t.nationality).name}, residence: ${countries.find((s) => s.code === t.residence).name}, existing visas/residence permit: ${t.visas.join(', ') || 'none'}`
     ).join('\n');
 
-    const prompt = `Suggest 15 suitable vacation destinations for the following travelers:
+    const prompt = `Suggest 7 suitable vacation destinations for the following travelers:
     TRAVELERS:
     ${travelersInfo}
     
