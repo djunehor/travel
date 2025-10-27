@@ -532,14 +532,29 @@ async function submitForm() {
 }
 
 async function pollTaskStatus(taskId) {
-    const maxAttempts = 60; // 5 minutes max (60 * 5 seconds)
+    const maxAttempts = 120; // 5 minutes max (60 * 5 seconds)
     let attempts = 0;
+    let lastTimestamp = 0;
+
+    // Add logs container to the loading spinner
+    const loadingSpinner = document.getElementById('loadingSpinner');
+    const spinnerContent = loadingSpinner.querySelector('.bg-white');
+    
+    // Create logs container if it doesn't exist
+    let logsContainer = spinnerContent.querySelector('#progressLogs');
+    if (!logsContainer) {
+        logsContainer = document.createElement('div');
+        logsContainer.id = 'progressLogs';
+        logsContainer.className = 'mt-4 max-h-48 overflow-y-auto w-full';
+        spinnerContent.appendChild(logsContainer);
+    }
 
     const poll = async () => {
         attempts++;
 
         try {
-            const response = await fetch(`${baseUrl}/api/task/${taskId}`, {
+            const url = `${baseUrl}/api/task/${taskId}${lastTimestamp > 0 ? `?timestamp=${lastTimestamp}` : ''}`;
+            const response = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -553,6 +568,24 @@ async function pollTaskStatus(taskId) {
 
             const result = await response.json();
             console.log('Task status:', result.status);
+
+            // Display new logs
+            if (result.logs && result.logs.length > 0) {
+                result.logs.forEach(log => {
+                    const logEntry = document.createElement('p');
+                    logEntry.className = 'text-sm text-gray-600 py-1 border-b border-gray-100';
+                    logEntry.textContent = log.message;
+                    logsContainer.appendChild(logEntry);
+                    
+                    // Update last timestamp
+                    if (log.timestamp > lastTimestamp) {
+                        lastTimestamp = log.timestamp;
+                    }
+                });
+                
+                // Auto-scroll to bottom
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+            }
 
             if (result.status === 'completed') {
                 // Task completed, show results
@@ -570,10 +603,10 @@ async function pollTaskStatus(taskId) {
             } else if (result.status === 'pending' || result.status === 'processing') {
                 // Still processing, poll again
                 if (attempts < maxAttempts) {
-                    setTimeout(poll, 15000); // Poll every 5 seconds
+                    setTimeout(poll, 5000);
                 } else {
                     loadingSpinner.classList.add('hidden');
-                    alert('Request timed out. Please try again.');
+                    alert('Request timed out. Please try again later.');
                 }
             }
         } catch (error) {
@@ -643,7 +676,7 @@ function displayResults(response) {
                                     ${dest.topActivities.slice(0, 4).map(activity => {
             const activityName = activity.name || activity;
             const activityPrice = activity.price || '';
-            return `<li>${activityName}${activityPrice ? ' - ' + activityPrice : ''}</li>`;
+            return `<li><a href="${activity.url}" target="_blank">${activityName}${activityPrice ? ' - ' + activityPrice : ''}</a></li>`;
         }).join('')}
                                 </ul>
                                 <p class="text-sm text-gray-700 mt-2">Estimated: <span class="font-semibold">$${parseFloat(dest.estimatedCost.activities).toFixed(2)}</span></p>

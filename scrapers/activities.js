@@ -60,9 +60,9 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         const durationDays = (new Date(checkOutStr) - new Date(checkInStr)) / (1000 * 60 * 60 * 24);
 
         const maxPrice = Math.round(budget / durationDays);
-        const minPrice = Math.max(0, Math.floor(maxPrice * 0.5));
+        const minPrice = Math.min(1, Math.floor(maxPrice * 0.5));
         console.log('🎟️ Scraping activities for:', destination, `Duration: ${durationDays} days`, { minPrice, maxPrice });
-        const url = `https://www.getyourguide.com/s?q=${destination}&searchSource=3&src=search_bar&date_from=${checkInStr}&date_to=${checkOutStr}&price_range=${minPrice}-${maxPrice}`;
+        const url = `https://www.getyourguide.com/s?q=${destination}&searchSource=3&src=search_bar&date_from=${checkInStr}&date_to=${checkOutStr}&price_range=${minPrice}-${maxPrice}&sort=price&order=asc`;
 
         // Check cache first
         const redisClient = getRedisClient();

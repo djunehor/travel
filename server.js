@@ -82,6 +82,16 @@ async function initDatabase() {
         )
     `);
 
+    db.run(`
+        CREATE TABLE IF NOT EXISTS task_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id TEXT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            FOREIGN KEY (task_id) REFERENCES tasks(id)
+        )
+    `);
+
     saveDatabase();
 }
 
@@ -93,9 +103,42 @@ function generateTaskId() {
     return `TASK${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 }
 
+function logTaskProgress(taskId, message) {
+    const timestamp = Date.now();
+    db.run(
+        `INSERT INTO task_logs (task_id, message, timestamp) VALUES (?, ?, ?)`,
+        [taskId, message, timestamp]
+    );
+    saveDatabase();
+}
+
 function getDurationDays(duration) {
-    if (typeof duration === 'string' && duration.endsWith('d')) return parseInt(duration.replace('d', ''), 10);
-    return Number(duration) || 7;
+    if (!duration || typeof duration !== 'string') return 7; // default 7 days
+
+    duration = duration.toLowerCase();
+
+    // Match "3-5-days" or "5-7-days"
+    let dayMatch = duration.match(/(\d+)-(\d+)-days/);
+    if (dayMatch) {
+        const min = parseInt(dayMatch[1], 10);
+        const max = parseInt(dayMatch[2], 10);
+        return Math.round((min + max) / 2); // average
+    }
+
+    // Match "1-2-weeks" or "2-plus-weeks"
+    let weekMatch = duration.match(/(\d+)(?:-(\d+)|\+)?-weeks/);
+    if (weekMatch) {
+        const minWeeks = parseInt(weekMatch[1], 10);
+        const maxWeeks = weekMatch[2] ? parseInt(weekMatch[2], 10) : minWeeks + 1; // "plus" -> add 1 week
+        return Math.round(((minWeeks + maxWeeks) / 2) * 7); // convert weeks → days
+    }
+
+    // If it's a single number with "d" suffix
+    let singleDayMatch = duration.match(/(\d+)d/);
+    if (singleDayMatch) return parseInt(singleDayMatch[1], 10);
+
+    // fallback
+    return 7;
 }
 
 function calculateBookingDeadline(timeframe) {
@@ -137,6 +180,8 @@ app.post('/api/plan-vacation', async (req, res) => {
 app.get('/api/task/:taskId', async (req, res) => {
     try {
         const { taskId } = req.params;
+        const { timestamp } = req.query;
+
         const result = db.exec(`SELECT status, result_data, error_message FROM tasks WHERE id = ?`, [taskId]);
 
         if (!result.length || !result[0].values.length) return res.status(404).json({ error: 'Task not found' });
@@ -146,6 +191,24 @@ app.get('/api/task/:taskId', async (req, res) => {
 
         if (status === 'completed' && resultData) response.data = JSON.parse(resultData);
         if (status === 'failed' && errorMessage) response.error = errorMessage;
+
+        // Fetch logs
+        let logsQuery = `SELECT message, timestamp FROM task_logs WHERE task_id = ?`;
+        let logsParams = [taskId];
+
+        if (timestamp) {
+            logsQuery += ` AND timestamp > ?`;
+            logsParams.push(parseInt(timestamp, 10));
+        }
+
+        logsQuery += ` ORDER BY timestamp ASC`;
+
+        const logsResult = db.exec(logsQuery, logsParams);
+        const logs = logsResult.length && logsResult[0].values.length
+            ? logsResult[0].values.map(([message, ts]) => ({ message, timestamp: ts }))
+            : [];
+
+        response.logs = logs;
 
         res.json(response);
     } catch (err) {
@@ -169,29 +232,41 @@ function updateTaskStatus(taskId, status, resultData = null, errorMessage = null
 
 // Background processing
 async function processTask(taskId, requestData, results = [], attempts = 0) {
-    const maxAttempts = 5;
+    const maxAttempts = 3;
 
     try {
-        console.log(`Processing task ${taskId}...`, { attempts, maxAttempts });
+        logTaskProgress(taskId, `Processing task (attempt ${attempts + 1} of ${maxAttempts})`);
 
         // Step 1: Get destination suggestions from LLM
-        console.log('Step 1: Getting destination suggestions from LLM...', requestData);
+        logTaskProgress(taskId, 'Getting destination suggestions from LLM');
         let destinations = await getDestinationSuggestions(requestData, attempts > 0);
         destinations = destinations.filter(d => {
             // Exclude already processed destinations
             return results.map(r => r.name).indexOf(d.name) === -1;
         });
-        console.log('Destinations:', destinations.map((d, i) => `${i + 1}. ${d.name} - Budget: $${d.estimatedBudget}`));
+
         if (!destinations?.length) throw new Error('No suitable destinations found');
+
+        logTaskProgress(taskId, `Found ${destinations.length} potential destinations`);
+
 
         // Step 2: Scrape data for each destination and departure airport
         for (const destination of destinations) {
-            console.log('RESULTS', destination.name, results.map(r => r.estimatedCost.total), destination.estimatedBudget, budgetRanges[requestData.budget]);
-            if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) break; // Limit to top 3 destinations
+            if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) {
+                logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
+                break;
+            }
 
             const departure = airportCodes.find((s) => s.iata === requestData.departureCountry);
 
+            if(!departure.iata) {
+                logTaskProgress(taskId, `Invalid departure airport code: ${requestData.departureCountry}`);
+                continue;
+            }
+
             try {
+                logTaskProgress(taskId, `Sourcing flight data for ${destination.name}`);
+
                 const adults = requestData.travelers.filter(t => t.type === 'adult').length;
                 const children = requestData.travelers.length - adults;
 
@@ -205,11 +280,13 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     children
                 });
                 if (!flightData?.price || Number(flightData.price) > budgetRanges[requestData.budget].max) {
-                    console.log(`Flight price ${flightData?.price}`, departure.iata, '-', destination.airportCode, `exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                    logTaskProgress(taskId, `Skipped ${destination.name}: Flight price exceeds budget`);
                     continue;
                 };
+                logTaskProgress(taskId, `Flight found for ${destination.name} at $${flightData.price}`);
 
                 // Scrape accommodation
+                logTaskProgress(taskId, `Sourcing accommodation data for ${destination.name}`);
                 const accommodationData = await scrapeAccommodation(
                     destination.name,
                     flightData.departureDate,
@@ -218,37 +295,37 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     adults,
                     children
                 );
-                if (!accommodationData || Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
-                    console.log(`Accommodation price ${accommodationData?.price} for ${requestData.duration} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                if (!accommodationData?.price || Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
+                    logTaskProgress(taskId, `Skipped ${destination.name}: Accommodation price exceeds budget`);
                     continue;
                 }
+                logTaskProgress(taskId, `Accommodation found for ${destination.name} at $${accommodationData.pricePerNight} per night`);
 
-                if(Number(flightData.price) + Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
-                    console.log(`Flight + Accommodation price ${Number(flightData.price) + Number(accommodationData.price.replace(/\D/g, ''))} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                if (Number(flightData.price) + Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
+                    logTaskProgress(taskId, `Skipped ${destination.name}: Flight + Accommodation exceeds budget`);
                     continue;
                 }
 
                 // Scrape activities
+                logTaskProgress(taskId, `Sourcing activities data for ${destination.name}`);
                 const activitiesData = await scrapeActivities(
                     destination.name,
                     flightData.departureDate,
                     flightData.returnDate,
                     budgetRanges[requestData.budget].max - Number(flightData.price) - (Number(accommodationData.price.replace(/\D/g, '')))
                 );
-                if (!activitiesData || activitiesData.totalPrice > budgetRanges[requestData.budget].max) {
-                    console.log(`Activities total price ${activitiesData?.totalPrice} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
-                    // continue;
-
-                    activitiesData = { activities: [], totalPrice: 0}
+                if (!activitiesData?.totalPrice || activitiesData.totalPrice > budgetRanges[requestData.budget].max) {
+                    activitiesData = { activities: [], totalPrice: 0 };
                 };
+                logTaskProgress(taskId, `Activities found for ${destination.name} totaling $${activitiesData.totalPrice}`);
 
                 // Combine results
                 const totalCost = Number(flightData.price) +
-                    (Number(accommodationData.pricePerNight) * getDurationDays(requestData.duration)) +
+                    Number(accommodationData.price.replace(/\D/g, '')) +
                     Number(activitiesData.totalPrice);
 
                 if (totalCost > budgetRanges[requestData.budget].max) {
-                    console.warn(`Total cost ${totalCost} exceeds estimated budget ${budgetRanges[requestData.budget].max}, skipping destination.`);
+                    logTaskProgress(taskId, `Skipped ${destination.name}: Total cost exceeds budget`);
                     continue;
                 }
 
@@ -259,12 +336,12 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     visaRequirements: destination.visaRequirements,
                     estimatedCost: {
                         flights: flightData.price,
-                        accommodation: accommodationData.pricePerNight * getDurationDays(requestData.duration),
+                        accommodation: Number(accommodationData.price.replace(/\D/g, '')),
                         activities: activitiesData.totalPrice,
                         total: totalCost
                     },
                     flightDetails: flightData,
-                    accommodationSuggestion: accommodationData.name,
+                    accommodationSuggestion: `<a href="${accommodationData.url}" target="_blank">${accommodationData.name}</a><br>${accommodationData.address}<br>Rating: ${accommodationData.rating} (${accommodationData.reviews} reviews)<br>Price: ${accommodationData.price} (${accommodationData.pricePerNight} per night)<br>Perks: ${accommodationData.perks.join(', ')}<br><a href="${accommodationData.url}" target="_blank">View on Booking.com</a>`,
                     topActivities: activitiesData.activities,
                     timeline: {
                         visaApplication: destination.visaTimeline,
@@ -273,10 +350,10 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
                     }
                 });
 
-                console.log(`✓ Successfully scraped ${destination.name}`);
+                logTaskProgress(taskId, `Successfully scraped ${destination.name} (total cost: $${totalCost})`);
 
             } catch (err) {
-                console.error(`Error scraping ${destination.name}:`, err.message);
+                logTaskProgress(taskId, `Error Sourcing flight data for ${destination.name}: ${err.message}`);
                 continue;
             }
 
@@ -284,9 +361,9 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
 
         attempts++;
 
-        if (results.length < 3) {
+        if (results.length < 1) {
             if (attempts < maxAttempts) {
-                console.log(`No complete data retrieved, retrying (attempt ${attempts} of ${maxAttempts})...`);
+                logTaskProgress(taskId, `No complete data retrieved, retrying...`);
                 return processTask(taskId, requestData, results, attempts);
             }
             if (results.length === 0) {
@@ -297,9 +374,9 @@ async function processTask(taskId, requestData, results = [], attempts = 0) {
         // Sort by total cost
         results.sort((a, b) => a.estimatedCost.total - b.estimatedCost.total);
         updateTaskStatus(taskId, 'completed', { destinations: results });
-        console.log(`✓ Task ${taskId} completed with ${results.length} destinations`);
+        logTaskProgress(taskId, `Task completed with ${results.length} destinations`);
     } catch (err) {
-        console.error(`Task ${taskId} failed:`, err);
+        logTaskProgress(taskId, `Task failed: ${err.message}`);
         updateTaskStatus(taskId, 'failed', null, err.message);
     }
 }
