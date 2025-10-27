@@ -1,6 +1,4 @@
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const UserAgent = require('user-agents');
+const { connect } = require('puppeteer-real-browser');
 const Redis = require('ioredis');
 
 // --- Redis Setup ---
@@ -31,13 +29,15 @@ function getRedisClient() {
     return redis;
 }
 
-puppeteer.use(StealthPlugin());
-
 async function launchBrowser() {
-    return await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-        defaultViewport: { width: 1366, height: 768 }
+     return await connect({
+        headless: false,
+        args: [],
+        customConfig: {},
+        turnstile: true,
+        connectOption: {},
+        disableXvfb: false,
+        ignoreAllFlags: false,
     });
 }
 
@@ -57,6 +57,7 @@ async function closeCookieBanner(page) {
 async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget, adults, children) {
 
     let browser;
+    let page;
     try {
         const durationDays = (new Date(checkOutStr) - new Date(checkInStr)) / (1000 * 60 * 60 * 24);
         console.log(new Date().toLocaleString(),`🏨 Scraping accommodation in ${destination} from ${checkInStr} to ${checkOutStr} for budget $${budget}`, durationDays);
@@ -78,11 +79,9 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
                 console.warn('⚠️ Redis get error:', err.message);
             }
         }
-        browser = await launchBrowser();
-        const page = await browser.newPage();
-
-        const userAgent = new UserAgent({ deviceCategory: 'desktop' });
-        await page.setUserAgent(userAgent.toString());
+        const l = await launchBrowser();
+        browser = l.browser;
+        page = l.page;
 
         console.log(new Date().toLocaleString(),`Navigating to Booking.com: ${url}`);
         await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 180 * 1000 });

@@ -1,6 +1,4 @@
-const puppeteer = require('puppeteer-extra');
-const StealthPlugin = require('puppeteer-extra-plugin-stealth');
-const UserAgent = require('user-agents');
+const { connect } = require('puppeteer-real-browser');
 const Redis = require('ioredis');
 
 // --- Redis Setup ---
@@ -34,11 +32,15 @@ function getRedisClient() {
 puppeteer.use(StealthPlugin());
 
 async function launchBrowser() {
-    return await puppeteer.launch({
-          headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-        defaultViewport: { width: 1366, height: 768 }
-    });
+    return await connect({
+           headless: false,
+           args: [],
+           customConfig: {},
+           turnstile: true,
+           connectOption: {},
+           disableXvfb: false,
+           ignoreAllFlags: false,
+       });
 }
 
 async function closeCookieBanner(page) {
@@ -56,6 +58,7 @@ async function closeCookieBanner(page) {
 async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
 
     let browser;
+    let page;
     try {
         const durationDays = (new Date(checkOutStr) - new Date(checkInStr)) / (1000 * 60 * 60 * 24);
 
@@ -78,10 +81,9 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
             }
         }
 
-        browser = await launchBrowser();
-        const page = await browser.newPage();
-        const userAgent = new UserAgent({ deviceCategory: 'desktop' });
-        await page.setUserAgent(userAgent.toString());
+        const l = await launchBrowser();
+        browser = l.browser;
+        page = l.page;
 
         console.log(new Date().toLocaleString(),`Navigating to GetYourGuide: ${url}`);
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
