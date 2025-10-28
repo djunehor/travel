@@ -70,7 +70,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
 
 
         console.log(new Date().toLocaleString(), `Navigating to Booking.com: ${url}`);
-        await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 30 * 1000 });
+        await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 60 * 1000 });
 
         await closeCookieBanner(page);
 
