@@ -1,4 +1,16 @@
-const { connect } = require('puppeteer-real-browser');
+const puppeteer = require('puppeteer-extra')
+
+// Add stealth plugin and use defaults (all tricks to hide puppeteer usage)
+const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+puppeteer.use(StealthPlugin())
+
+// Add adblocker plugin to block all ads and trackers (saves bandwidth)
+const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
+puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
+
+const anonymizeUA = require('puppeteer-extra-plugin-anonymize-ua')
+puppeteer.use(anonymizeUA())
+
 const Redis = require('ioredis');
 const fs = require('fs');
 
@@ -21,7 +33,7 @@ function getRedisClient() {
                 redis = null;
             });
 
-            console.log(new Date().toLocaleString(),'✅ Redis client initialized');
+            console.log(new Date().toLocaleString(), '✅ Redis client initialized');
         } catch (err) {
             console.warn('⚠️ Failed to initialize Redis:', err.message);
             redis = null;
@@ -31,15 +43,10 @@ function getRedisClient() {
 }
 
 async function launchBrowser() {
-     return await connect({
-        headless: false,
-        args: [],
-        customConfig: {},
-        turnstile: true,
-        connectOption: {},
-        disableXvfb: false,
-        ignoreAllFlags: false,
-    });
+    const browser = await puppeteer.launch({ headless: true })
+    const page = await browser.newPage()
+
+    return { browser, page };
 }
 
 async function closeCookieBanner(page) {
@@ -48,7 +55,7 @@ async function closeCookieBanner(page) {
         const el = await page.$(selector);
         if (el) {
             await el.click();
-            console.log(new Date().toLocaleString(),'✅ Accepted Booking.com cookies');
+            console.log(new Date().toLocaleString(), '✅ Accepted Booking.com cookies');
             await new Promise(resolve => setTimeout(resolve, 1000)); // wait for any potential navigation
         }
     } catch (e) { }
@@ -61,9 +68,9 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
     let page;
     try {
         const durationDays = (new Date(checkOutStr) - new Date(checkInStr)) / (1000 * 60 * 60 * 24);
-        console.log(new Date().toLocaleString(),`🏨 Scraping accommodation in ${destination} from ${checkInStr} to ${checkOutStr} for budget $${budget}`, durationDays);
+        console.log(new Date().toLocaleString(), `🏨 Scraping accommodation in ${destination} from ${checkInStr} to ${checkOutStr} for budget $${budget}`, durationDays);
         const maxPricePerNight = Math.round(budget / durationDays);
-        console.log(new Date().toLocaleString(),`💰 Max price per night: $${maxPricePerNight.toFixed(2)}`);
+        console.log(new Date().toLocaleString(), `💰 Max price per night: $${maxPricePerNight.toFixed(2)}`);
 
         const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(destination)}&checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&selected_currency=USD&order=price&nflt=price%3DUSD-min-${maxPricePerNight}-1`;
 
@@ -73,7 +80,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
             try {
                 const cached = await redisClient.get(url);
                 if (cached) {
-                    console.log(new Date().toLocaleString(),'✅ Returning cached accommodation data');
+                    console.log(new Date().toLocaleString(), '✅ Returning cached accommodation data');
                     return JSON.parse(cached);
                 }
             } catch (err) {
@@ -84,7 +91,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         browser = l.browser;
         page = l.page;
 
-        console.log(new Date().toLocaleString(),`Navigating to Booking.com: ${url}`);
+        console.log(new Date().toLocaleString(), `Navigating to Booking.com: ${url}`);
         await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
 
         await closeCookieBanner(page);
@@ -97,8 +104,8 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         // Wait for property card
         try {
             await page.waitForSelector('div[data-testid="property-card"]', { timeout: 120 * 1000 })
-        } catch(e) {
-            console.log(new Date().toLocaleString(),'⚠️ Timeout waiting for accommodation results');
+        } catch (e) {
+            console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for accommodation results');
             fs.writeFileSync(`${process.cwd()}/html/accommodation_error_${Date.now()}.html`, await page.content());
             // take screenshot for debugging
             await page.screenshot({ path: `${process.cwd()}/screenshots/accommodation_${Date.now()}.png`, fullPage: true });
@@ -131,7 +138,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         if (redisClient && result.price) {
             try {
                 await redisClient.setex(url, 86400, JSON.stringify(result));
-                console.log(new Date().toLocaleString(),'✅ Cached flight data for 24 hours');
+                console.log(new Date().toLocaleString(), '✅ Cached flight data for 24 hours');
             } catch (err) {
                 console.warn('⚠️ Redis set error:', err.message);
             }
