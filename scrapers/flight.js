@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer-extra')
+const { getRedisClient } = require('../helpers');
 
 // Add stealth plugin and use defaults (all tricks to hide puppeteer usage)
 const StealthPlugin = require('puppeteer-extra-plugin-stealth')
@@ -10,37 +11,7 @@ puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
 
 const anonymizeUA = require('puppeteer-extra-plugin-anonymize-ua')
 puppeteer.use(anonymizeUA())
-
-const Redis = require('ioredis');
 const fs = require('fs');
-
-// --- Redis Setup ---
-let redis = null;
-
-function getRedisClient() {
-    if (!redis && process.env.REDIS_URL) {
-        try {
-            redis = new Redis(process.env.REDIS_URL, {
-                maxRetriesPerRequest: 3,
-                retryStrategy(times) {
-                    if (times > 3) return null;
-                    return Math.min(times * 200, 1000);
-                }
-            });
-
-            redis.on('error', (err) => {
-                console.warn('⚠️ Redis connection error:', err.message);
-                redis = null;
-            });
-
-            console.log(new Date().toLocaleString(), '✅ Redis client initialized');
-        } catch (err) {
-            console.warn('⚠️ Failed to initialize Redis:', err.message);
-            redis = null;
-        }
-    }
-    return redis;
-}
 
 // --- Helper Functions ---
 function getDateRange(timeframe) {
@@ -279,7 +250,7 @@ async function scrapeFlights({
     const departureDateStr = `${year.substr(-2)}${month}${day}`;
     const returnDateStr = `${year2.substr(-2)}${month2}${day2}`;
 
-    const url = `https://www.skyscanner.de/transport/flights/${departureAirport}/${destinationAirport}/${departureDateStr}/${returnDateStr}/?adultsv2=${adults}&cabinclass=economy${children > 0 ? `&childrenv2=${children}` : ''}&ref=home&rtn=1&preferdirects=false&outboundaltsenabled=false&inboundaltsenabled=false&currency=USD`;
+    const url = `https://www.skyscanner.com/transport/flights/${departureAirport}/${destinationAirport}/${departureDateStr}/${returnDateStr}/?adultsv2=${adults}&cabinclass=economy${children > 0 ? `&childrenv2=${children}` : ''}&ref=home&rtn=1&preferdirects=false&outboundaltsenabled=false&inboundaltsenabled=false&currency=USD`;
 
     // Check cache first
     const redisClient = getRedisClient();

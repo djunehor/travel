@@ -2,7 +2,7 @@
 let currentStep = 1;
 let totalSteps = 8;
 let travelers = [];
-const baseUrl = 'http://138.68.3.186';
+const baseUrl = 'https://vacation-planner.shagital.com';
 
 const form = document.getElementById('vacationForm');
 const prevBtn = document.getElementById('prevBtn');
@@ -532,7 +532,7 @@ async function submitForm() {
 }
 
 async function pollTaskStatus(taskId) {
-    const maxAttempts = 120; // 5 minutes max (60 * 5 seconds)
+    const maxAttempts = 180; // 5 minutes max (60 * 5 seconds)
     let attempts = 0;
     let lastTimestamp = 0;
 
