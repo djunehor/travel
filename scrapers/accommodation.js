@@ -105,8 +105,19 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
             const dismissBtn = document.querySelector('button[aria-label="Dismiss sign-in info."]');
             if (dismissBtn) dismissBtn.click();
         });
-        const pageTitle = await page.evaluate(() => document.title);
-        console.log(new Date().toLocaleString(), process.cwd(), 'Page title:', pageTitle);
+        const { pageTitle, pageUrl } = await page.evaluate(() => {
+
+            return {
+                pageTitle: document.title,
+                pageUrl: window.location.href
+            }
+        });
+        // if we're on the homepage instead of search results, let's navigate to the search results again
+        if (pageUrl.includes('booking.com/') && !pageUrl.includes('searchresults.html')) {
+            console.log(new Date().toLocaleString(), '⚠️ Redirected to homepage, navigating back to search results');
+            await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
+        }
+        console.log(new Date().toLocaleString(), { pageUrl, pageTitle });
 
         // Wait for property card
         try {
