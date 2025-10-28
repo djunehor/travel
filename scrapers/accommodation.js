@@ -72,7 +72,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         const maxPricePerNight = Math.round(budget / durationDays);
         console.log(new Date().toLocaleString(), `💰 Max price per night: $${maxPricePerNight.toFixed(2)}`);
 
-        const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(destination)}&checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&selected_currency=USD&order=price&nflt=price%3DUSD-min-${maxPricePerNight}-1`;
+        const url = `https://www.booking.com?checkin=${checkInStr}&checkout=${checkOutStr}&group_adults=${adults}&group_children=${children}&age=12&no_rooms=1&selected_currency=USD&order=price&nflt=price%3DUSD-min-${maxPricePerNight}-1`;
 
         // Check cache first
         const redisClient = getRedisClient();
@@ -109,12 +109,16 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         }
 
         await page.evaluate(() => window.scrollBy(0, window.innerHeight));
-        await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
 
         await page.evaluate(() => {
             const dismissBtn = document.querySelector('button[aria-label="Dismiss sign-in info."]');
             if (dismissBtn) dismissBtn.click();
         });
+        // type destination in input field input[name="ss"]
+        await page.type('input[name="ss"]', destination, { delay: 100 });
+        await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
+        await page.keyboard.press('Enter');
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 180 * 1000 });
         const { pageTitle, pageUrl } = await page.evaluate(() => {
 
             return {
