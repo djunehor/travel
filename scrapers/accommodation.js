@@ -135,7 +135,8 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
 
         // Wait for property card
         try {
-            await page.waitForSelector('div[data-testid="property-card"]', { timeout: 120 * 1000 })
+            await page.waitForSelector('div[data-testid="property-card"]', { timeout: 120 * 1000 });
+            console.log(new Date().toLocaleString(), '✅ Accommodation results loaded');
         } catch (e) {
             console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for accommodation results');
             fs.writeFileSync(`${process.cwd()}/html/accommodation_error_${Date.now()}.html`, await page.content());
@@ -158,6 +159,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
                 address: propertyElement.querySelector('span[data-testid="address"]')?.textContent.trim() || null
             };
         });
+        console.log(new Date().toLocaleString(), 'Extracted hotel data:', hotelData);
 
         const result = {
             ...hotelData,
