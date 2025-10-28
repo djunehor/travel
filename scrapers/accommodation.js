@@ -98,12 +98,12 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
 
 
         console.log(new Date().toLocaleString(), `Navigating to Booking.com: ${url}`);
-        await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
+        await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 30 * 1000 });
 
         await closeCookieBanner(page);
 
         try {
-            await page.waitForSelector('button[aria-label="Dismiss sign-in info."]', { timeout: 15000 });
+            await page.waitForSelector('button[aria-label="Dismiss sign-in info."]', { timeout: 5000 });
         } catch (e) {
             console.log(new Date().toLocaleString(), 'No sign-in info banner to dismiss');
         }
@@ -118,7 +118,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         await page.type('input[name="ss"]', destination, { delay: 100 });
         await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
         await page.keyboard.press('Enter');
-        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 180 * 1000 });
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60 * 1000 });
         const { pageTitle, pageUrl } = await page.evaluate(() => {
 
             return {
@@ -129,7 +129,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         // if we're on the homepage instead of search results, let's navigate to the search results again
         if (pageUrl.includes('booking.com/') && !pageUrl.includes('searchresults.html')) {
             console.log(new Date().toLocaleString(), '⚠️ Redirected to homepage, navigating back to search results');
-            await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
+            await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 30 * 1000 });
         }
         console.log(new Date().toLocaleString(), { pageUrl, pageTitle });
 
@@ -172,7 +172,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         if (redisClient && result.price) {
             try {
                 await redisClient.setex(url, 86400, JSON.stringify(result));
-                console.log(new Date().toLocaleString(), '✅ Cached flight data for 24 hours');
+                console.log(new Date().toLocaleString(), '✅ Cached accommodation data for 24 hours');
             } catch (err) {
                 console.warn('⚠️ Redis set error:', err.message);
             }
