@@ -400,7 +400,7 @@ app.post('/api/plan-vacation', async (req, res) => {
 
         console.time(taskId)
         // cancel task if not done in 4 mins
-        setTimeout(() => cancelTask(taskId), 4 * 60 * 1000);
+        setTimeout(() => cancelTask(taskId), 10 * 60 * 1000);
         processTask(taskId, req.body).then(() => console.timeEnd(taskId)).catch(err => {
             console.error(`Error processing task ${taskId}:`, err);
             updateTaskStatus(taskId, 'failed', null, err.message);
