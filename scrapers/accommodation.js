@@ -91,16 +91,26 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         browser = l.browser;
         page = l.page;
 
+        await page.setUserAgent(
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+        );
+        await page.setViewport({ width: 1280, height: 800 });
+
+
         console.log(new Date().toLocaleString(), `Navigating to Booking.com: ${url}`);
         await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 180 * 1000 });
 
         await closeCookieBanner(page);
-        
+
         try {
             await page.waitForSelector('button[aria-label="Dismiss sign-in info."]', { timeout: 15000 });
-        } catch(e) {
+        } catch (e) {
             console.log(new Date().toLocaleString(), 'No sign-in info banner to dismiss');
         }
+
+        await page.evaluate(() => window.scrollBy(0, window.innerHeight));
+        await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
+
         await page.evaluate(() => {
             const dismissBtn = document.querySelector('button[aria-label="Dismiss sign-in info."]');
             if (dismissBtn) dismissBtn.click();
