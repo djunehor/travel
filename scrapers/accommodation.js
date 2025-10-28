@@ -90,20 +90,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         await page.type('input[name="ss"]', destination, { delay: 100 });
         await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
         await page.keyboard.press('Enter');
-        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60 * 1000 });
-        const { pageTitle, pageUrl } = await page.evaluate(() => {
-
-            return {
-                pageTitle: document.title,
-                pageUrl: window.location.href
-            }
-        });
-        // if we're on the homepage instead of search results, let's navigate to the search results again
-        if (pageUrl.includes('booking.com/') && !pageUrl.includes('searchresults.html')) {
-            console.log(new Date().toLocaleString(), '⚠️ Redirected to homepage, navigating back to search results');
-            await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 30 * 1000 });
-        }
-        console.log(new Date().toLocaleString(), { pageUrl, pageTitle });
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 120 * 1000 });
 
         // Wait for property card
         try {
@@ -131,7 +118,6 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
                 address: propertyElement.querySelector('span[data-testid="address"]')?.textContent.trim() || null
             };
         });
-        console.log(new Date().toLocaleString(), 'Extracted hotel data:', hotelData);
 
         const result = {
             ...hotelData,
