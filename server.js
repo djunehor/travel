@@ -455,7 +455,7 @@ app.get('/api/task/:taskId', async (req, res) => {
 
         if (!response.data) {
             try {
-                const cached = await redisClient.get(url);
+                const cached = await redisClient.get(`TASK:${taskId}`);
                 if (cached) {
                     console.log(new Date().toLocaleString(), '✅ Returning task cached data');
                     response.data = JSON.parse(cached);
