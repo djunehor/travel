@@ -532,7 +532,7 @@ async function submitForm() {
 }
 
 async function pollTaskStatus(taskId) {
-    const maxAttempts = 180; // 5 minutes max (60 * 5 seconds)
+    const maxAttempts = 180;
     let attempts = 0;
     let lastTimestamp = 0;
 
@@ -590,7 +590,7 @@ async function pollTaskStatus(taskId) {
             if (result.status === 'completed') {
                 // Task completed, show results
                 loadingSpinner.classList.add('hidden');
-                formContainer.classList.add('hidden');
+                //formContainer.classList.add('hidden');
                 document.getElementById('progressBar').classList.add('hidden');
                 resultsContainer.classList.remove('hidden');
                 displayResults(result.data);
@@ -618,6 +618,10 @@ async function pollTaskStatus(taskId) {
                     alert('Request timed out. Please try again later.');
 
                 }
+            } else if (result.status === 'cancelled') {
+                loadingSpinner.classList.add('hidden');
+                alert('The vacation planning task was cancelled.');
+                return;
             }
         } catch (error) {
             console.error('Error polling task:', error);
@@ -627,7 +631,7 @@ async function pollTaskStatus(taskId) {
             } else {
                 loadingSpinner.classList.add('hidden');
 
-                // cacnel the task on the server
+                // cancel the task on the server
                 fetch(`${baseUrl}/api/task/${taskId}/cancel`, {
                     method: 'POST',
                     headers: {
