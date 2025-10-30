@@ -574,7 +574,7 @@ async function pollTaskStatus(taskId) {
                 result.logs.forEach(log => {
                     const logEntry = document.createElement('p');
                     logEntry.className = 'text-sm text-gray-600 py-1 border-b border-gray-100';
-                    logEntry.textContent = log.message;
+                    logEntry.textContent = `${new Date(log.timestamp).toLocaleString()} => ${log.message}`;
                     logsContainer.appendChild(logEntry);
                     
                     // Update last timestamp
