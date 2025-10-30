@@ -152,9 +152,7 @@ async function processTask(taskId, requestData) {
         // Cancellation check after LLM call
         if (await checkCancelled(taskId)) return;
 
-        destinations = destinations.filter(d => {
-            return results.map(r => r.name).indexOf(d.name) === -1;
-        });
+        destinations.sort((a, b) => a.estimatedBudget - b.estimatedBudget);
 
         if (!destinations?.length) throw new Error('No suitable destinations found');
 
@@ -349,7 +347,7 @@ function buildDestinationPrompt(requestData) {
         `Traveler ${i + 1}: ${t.name}, nationality: ${countries.find((s) => s.code === t.nationality).name}, residence: ${countries.find((s) => s.code === t.residence).name}, existing visas/residence permit: ${t.visas.join(', ') || 'none'}`
     ).join('\n');
 
-    const prompt = `Suggest 7 suitable vacation destinations for the following travelers:
+    const prompt = `Suggest 15 suitable vacation destinations for the following travelers:
     TRAVELERS:
     ${travelersInfo}
     
