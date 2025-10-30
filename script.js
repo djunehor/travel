@@ -8,6 +8,8 @@ const baseUrl = 'https://vacation-planner.shagital.com';
 let currentTaskId = null;
 let isTaskCancelled = false;
 let pollTimeoutId = null;
+// track whether we've shown partial results already
+let partialResultsShown = false;
 const form = document.getElementById('vacationForm');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
@@ -578,6 +580,7 @@ async function pollTaskStatus(taskId) {
             loadingSpinner.classList.add('hidden');
             if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
             currentTaskId = null;
+            partialResultsShown = false;
             alert('The vacation planning task was cancelled.');
             return;
         }
@@ -617,6 +620,19 @@ async function pollTaskStatus(taskId) {
                 logsContainer.scrollTop = logsContainer.scrollHeight;
             }
 
+            // If the backend now returns partial results in `data`, render them immediately
+            if (result.data && Array.isArray(result.data.destinations) && result.data.destinations.length > 0) {
+                // show the results panel while keeping the loading spinner visible (so users know processing is ongoing)
+                document.getElementById('progressBar').classList.remove('hidden');
+                resultsContainer.classList.remove('hidden');
+                formContainer.classList.add('hidden');
+
+                const isFinal = result.status === 'completed' || result.status === 'complete';
+                // render current available results; mark as partial unless status is final
+                displayResults(result.data, { partial: !isFinal });
+                partialResultsShown = !isFinal;
+            }
+
             if (result.status === 'completed') {
                 // Task completed, show results
                 loadingSpinner.classList.add('hidden');
@@ -625,13 +641,15 @@ async function pollTaskStatus(taskId) {
                 //formContainer.classList.add('hidden');
                 document.getElementById('progressBar').classList.add('hidden');
                 resultsContainer.classList.remove('hidden');
-                displayResults(result.data);
+                displayResults(result.data, { partial: false });
+                partialResultsShown = false;
                 return;
             } else if (result.status === 'failed') {
                 // Task failed
                 loadingSpinner.classList.add('hidden');
                 if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
                 currentTaskId = null;
+                partialResultsShown = false;
                 alert('Failed to plan vacation: ' + (result.error || 'Unknown error'));
                 return;
             } else if (result.status === 'pending' || result.status === 'processing') {
@@ -656,6 +674,7 @@ async function pollTaskStatus(taskId) {
                 loadingSpinner.classList.add('hidden');
                 if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
                 currentTaskId = null;
+                partialResultsShown = false;
                 alert('The vacation planning task was cancelled.');
                 return;
             }
@@ -690,6 +709,7 @@ function cancelCurrentTask() {
         isTaskCancelled = true;
         if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
         loadingSpinner.classList.add('hidden');
+        partialResultsShown = false;
         return;
     }
 
@@ -716,6 +736,7 @@ function cancelCurrentTask() {
         loadingSpinner.classList.add('hidden');
         if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
         currentTaskId = null;
+        partialResultsShown = false;
         alert('Cancellation requested.');
     }).catch(err => {
         console.error('Failed to cancel task:', err);
@@ -728,10 +749,14 @@ function cancelCurrentTask() {
     });
 }
 
-function displayResults(response) {
+function displayResults(response, { partial = false } = {}) {
     const resultsContent = document.getElementById('resultsContent');
 
     let html = '<h2 class="text-3xl font-bold text-gray-900 mb-6">Your Vacation Options</h2>';
+
+    if (partial) {
+        html += '<p class="text-sm text-yellow-700 mb-4">Partial results — more options may appear while the planner finishes processing.</p>';
+    }
 
     response.destinations.forEach((dest, index) => {
         html += `
@@ -845,6 +870,7 @@ newSearchBtn.addEventListener('click', () => {
     formContainer.classList.remove('hidden');
     document.getElementById('progressBar').classList.remove('hidden');
     resultsContainer.classList.add('hidden');
+    partialResultsShown = false;
     showStep(1);
 });
 

@@ -163,13 +163,8 @@ async function processTask(taskId, requestData) {
             const destination = destinations[i];
             if (await checkCancelled(taskId)) return;
 
-            // if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) {
-            //     logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
-            //     break;
-            // }
-
-            if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 1) {
-                logTaskProgress(taskId, 'Reached maximum of 1 valid destinations');
+            if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) {
+                logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
                 break;
             }
 
