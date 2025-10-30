@@ -69,7 +69,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
 
 
         console.log(new Date().toLocaleString(), `Navigating to Booking.com: ${url}`);
-        await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 60 * 1000 });
+        await page.goto(`${url}&chal_t=${Date.now()}`, { waitUntil: 'networkidle2', timeout: 30 * 1000 });
 
         await closeCookieBanner(page);
 
@@ -93,13 +93,13 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         await page.type('input[name="ss"]', destination, { delay: 100 });
         await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
         await page.keyboard.press('Enter');
-        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 120 * 1000 });
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30 * 1000 });
 
         // Wait for property card
         try {
             const [output, _] = await Promise.race([
-                page.waitForSelector('div[data-testid="property-card"]', { timeout: 60 * 1000 }),
-                page.waitForSelector('div[data-testid="properties-list-empty-state"]', { timeout: 60 * 1000 })
+                page.waitForSelector('div[data-testid="property-card"]', { timeout: 30 * 1000 }),
+                page.waitForSelector('div[data-testid="properties-list-empty-state"]', { timeout: 30 * 1000 })
             ]);
             console.log(new Date().toLocaleString(), output ? '✅ Accommodation results loaded' : '⚠️ No accommodation found');
         } catch (e) {

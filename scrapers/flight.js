@@ -202,7 +202,7 @@ async function handleCaptchaLoop(page, originalUrl) {
     }
 }
 
-async function waitForFlightResults(page, selector = 'ul[class*="FlightsResults_dayViewItems"] li div[class*="FlightsTicket_container"]', timeout = 60000) {
+async function waitForFlightResults(page, selector = 'ul[class*="FlightsResults_dayViewItems"] li div[class*="FlightsTicket_container"]', timeout = 30000) {
     const start = Date.now();
     const captchaSelector = '#px-captcha';
 
@@ -270,7 +270,7 @@ async function scrapeFlights({
         page = response.page;
 
         console.log(new Date().toLocaleString(), `Navigating to Skyscanner: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60 * 1000 });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30 * 1000 });
 
         await Promise.race([
             closeCookieBanner(page),
@@ -281,7 +281,7 @@ async function scrapeFlights({
         try {
             const [output, _] = await Promise.race([
                 waitForFlightResults(page),
-                page.waitForSelector('div[id="not-found-root"]', { timeout: 60 * 1000 })
+                page.waitForSelector('div[id="not-found-root"]', { timeout: 30 * 1000 })
             ]);
             console.log(new Date().toLocaleString(), output ? '✅ Flight results loaded' : '⚠️ No flights found');
         } catch (e) {

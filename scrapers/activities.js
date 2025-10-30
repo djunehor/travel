@@ -63,7 +63,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         page = l.page;
 
         console.log(new Date().toLocaleString(), `Navigating to GetYourGuide: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 120 * 1000 });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30 * 1000 });
 
         await closeCookieBanner(page);
 
@@ -73,8 +73,8 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
 
         try {
             const [activitiesElement, _] = await Promise.race([
-                page.waitForSelector(activitySelector, { timeout: 60 * 1000 }),
-                page.waitForSelector(emptySelector, { timeout: 60 * 1000 })
+                page.waitForSelector(activitySelector, { timeout: 30 * 1000 }),
+                page.waitForSelector(emptySelector, { timeout: 30 * 1000 })
             ]);
             console.log(new Date().toLocaleString(), activitiesElement ? '✅ Activity results loaded' : '⚠️ No activities found');
         } catch (e) {
