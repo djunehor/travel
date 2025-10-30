@@ -4,6 +4,10 @@ let totalSteps = 8;
 let travelers = [];
 const baseUrl = 'https://vacation-planner.shagital.com';
 
+// Cancellation / polling control
+let currentTaskId = null;
+let isTaskCancelled = false;
+let pollTimeoutId = null;
 const form = document.getElementById('vacationForm');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
@@ -12,6 +16,7 @@ const formContainer = document.getElementById('formContainer');
 const resultsContainer = document.getElementById('resultsContainer');
 const loadingSpinner = document.getElementById('loadingSpinner');
 const newSearchBtn = document.getElementById('newSearchBtn');
+const cancelLoadingBtn = document.getElementById('cancelLoadingBtn');
 
 // Country list for dropdowns
 const countries = [
@@ -502,6 +507,14 @@ async function submitForm() {
 
     // Show loading spinner
     loadingSpinner.classList.remove('hidden');
+    // Show cancel button and reset cancellation state
+    if (cancelLoadingBtn) {
+        cancelLoadingBtn.classList.remove('hidden');
+        cancelLoadingBtn.disabled = false;
+        cancelLoadingBtn.textContent = 'Cancel';
+        cancelLoadingBtn.onclick = cancelCurrentTask;
+    }
+    isTaskCancelled = false;
 
     try {
         // Call API to create task
@@ -521,6 +534,8 @@ async function submitForm() {
         const { taskId } = await response.json();
         console.log(new Date().toLocaleString(), 'Task created:', taskId);
 
+        // Track current task id and start polling
+        currentTaskId = taskId;
         // Poll for results
         await pollTaskStatus(taskId);
 
@@ -553,6 +568,19 @@ async function pollTaskStatus(taskId) {
 
     const poll = async () => {
         attempts++;
+
+        // Stop polling early if user requested cancellation
+        if (isTaskCancelled) {
+            if (pollTimeoutId) {
+                clearTimeout(pollTimeoutId);
+                pollTimeoutId = null;
+            }
+            loadingSpinner.classList.add('hidden');
+            if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
+            currentTaskId = null;
+            alert('The vacation planning task was cancelled.');
+            return;
+        }
 
         try {
             const url = `${baseUrl}/api/task/${taskId}${lastTimestamp > 0 ? `?timestamp=${lastTimestamp}` : ''}`;
@@ -592,6 +620,8 @@ async function pollTaskStatus(taskId) {
             if (result.status === 'completed') {
                 // Task completed, show results
                 loadingSpinner.classList.add('hidden');
+                if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
+                currentTaskId = null;
                 //formContainer.classList.add('hidden');
                 document.getElementById('progressBar').classList.add('hidden');
                 resultsContainer.classList.remove('hidden');
@@ -600,12 +630,14 @@ async function pollTaskStatus(taskId) {
             } else if (result.status === 'failed') {
                 // Task failed
                 loadingSpinner.classList.add('hidden');
+                if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
+                currentTaskId = null;
                 alert('Failed to plan vacation: ' + (result.error || 'Unknown error'));
                 return;
             } else if (result.status === 'pending' || result.status === 'processing') {
                 // Still processing, poll again
                 if (attempts < maxAttempts) {
-                    setTimeout(poll, 5000);
+                    pollTimeoutId = setTimeout(poll, 5000);
                 } else {
                     loadingSpinner.classList.add('hidden');
 
@@ -622,6 +654,8 @@ async function pollTaskStatus(taskId) {
                 }
             } else if (result.status === 'cancelled') {
                 loadingSpinner.classList.add('hidden');
+                if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
+                currentTaskId = null;
                 alert('The vacation planning task was cancelled.');
                 return;
             }
@@ -629,7 +663,7 @@ async function pollTaskStatus(taskId) {
             console.error('Error polling task:', error);
 
             if (attempts < maxAttempts) {
-                setTimeout(poll, 5000);
+                pollTimeoutId = setTimeout(poll, 5000);
             } else {
                 loadingSpinner.classList.add('hidden');
 
@@ -648,6 +682,50 @@ async function pollTaskStatus(taskId) {
 
     // Start polling
     poll();
+}
+
+function cancelCurrentTask() {
+    if (!currentTaskId) {
+        // nothing to cancel
+        isTaskCancelled = true;
+        if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
+        loadingSpinner.classList.add('hidden');
+        return;
+    }
+
+    isTaskCancelled = true;
+    if (pollTimeoutId) {
+        clearTimeout(pollTimeoutId);
+        pollTimeoutId = null;
+    }
+
+    if (cancelLoadingBtn) {
+        cancelLoadingBtn.disabled = true;
+        cancelLoadingBtn.textContent = 'Cancelling...';
+    }
+
+    // Send cancel request to server
+    fetch(`${baseUrl}/api/task/${currentTaskId}/cancel`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true'
+        }
+    }).then(res => {
+        // Hide UI and reset
+        loadingSpinner.classList.add('hidden');
+        if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
+        currentTaskId = null;
+        alert('Cancellation requested.');
+    }).catch(err => {
+        console.error('Failed to cancel task:', err);
+        alert('Failed to cancel task.');
+    }).finally(() => {
+        if (cancelLoadingBtn) {
+            cancelLoadingBtn.disabled = false;
+            cancelLoadingBtn.textContent = 'Cancel';
+        }
+    });
 }
 
 function displayResults(response) {

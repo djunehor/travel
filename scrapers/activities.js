@@ -28,7 +28,6 @@ async function closeCookieBanner(page) {
         if (el) {
             await el.click();
             console.log(new Date().toLocaleString(), '✅ Accepted GetYourGuide cookies');
-            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     } catch (e) { }
 }
@@ -136,7 +135,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         return result;
 
     } catch (error) {
-        console.error('⚠️ Error scraping activities:', error.message);
+        console.error('❌ Error scraping activities:', error.message);
         return null;
     } finally {
         if (browser) await browser.close();

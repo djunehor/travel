@@ -113,7 +113,6 @@ async function closeCookieBanner(page) {
         if (el) {
             await el.click();
             console.log(new Date().toLocaleString(), '✅ Accepted cookies');
-            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     } catch (e) { }
 }
@@ -125,7 +124,6 @@ async function closeLoginModal(page) {
         if (el) {
             await el.click();
             console.log(new Date().toLocaleString(), '✅ Closed login modal');
-            await new Promise(resolve => setTimeout(resolve, 1000));
         }
     } catch (e) { }
 }
@@ -222,8 +220,6 @@ async function waitForFlightResults(page, selector = 'ul[class*="FlightsResults_
             console.log(new Date().toLocaleString(), '✅ Flight results found!');
             return true;
         }
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
     }
     return false;
 }
@@ -274,11 +270,13 @@ async function scrapeFlights({
         page = response.page;
 
         console.log(new Date().toLocaleString(), `Navigating to Skyscanner: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60 * 1000 });
 
-        await closeCookieBanner(page);
-        await handleCaptchaLoop(page, page.url());
-        await closeLoginModal(page);
+        await Promise.race([
+            closeCookieBanner(page),
+            handleCaptchaLoop(page, page.url()),
+            closeLoginModal(page),
+        ]);
 
         try {
             const [output, _] = await Promise.race([

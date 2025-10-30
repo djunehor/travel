@@ -145,7 +145,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         return result;
 
     } catch (error) {
-        console.error('Error scraping accommodation:', error);
+        console.error('❌ Error scraping accommodation:', error);
         return null;
     } finally {
         if (browser) await browser.close();
