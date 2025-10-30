@@ -74,7 +74,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         await closeCookieBanner(page);
 
         try {
-            await Promise.all([
+            await Promise.race([
                 page.waitForSelector('button[aria-label="Dismiss sign-in info."]', { timeout: 5 * 1000 }),
                 page.waitForSelector('div[data-testid="property-card"]', { timeout: 5 * 1000 }),
                 page.waitForSelector('div[data-testid="properties-list-empty-state"]', { timeout: 5 * 1000 })
@@ -97,7 +97,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
 
         // Wait for property card
         try {
-            const [output, _] = await Promise.all([
+            const [output, _] = await Promise.race([
                 page.waitForSelector('div[data-testid="property-card"]', { timeout: 60 * 1000 }),
                 page.waitForSelector('div[data-testid="properties-list-empty-state"]', { timeout: 60 * 1000 })
             ]);

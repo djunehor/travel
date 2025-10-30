@@ -73,7 +73,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         const activitySelector = 'section div[class="activity-card-block activity-card-block--grid"]';
 
         try {
-            const [activitiesElement, _] = await Promise.all([
+            const [activitiesElement, _] = await Promise.race([
                 page.waitForSelector(activitySelector, { timeout: 60 * 1000 }),
                 page.waitForSelector(emptySelector, { timeout: 60 * 1000 })
             ]);
@@ -136,7 +136,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         return result;
 
     } catch (error) {
-        console.error('Error scraping activities:', error.message);
+        console.error('⚠️ Error scraping activities:', error.message);
         return null;
     } finally {
         if (browser) await browser.close();

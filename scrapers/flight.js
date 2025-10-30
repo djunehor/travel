@@ -281,7 +281,7 @@ async function scrapeFlights({
         await closeLoginModal(page);
 
         try {
-            const [output, _] = await Promise.all([
+            const [output, _] = await Promise.race([
                 waitForFlightResults(page),
                 page.waitForSelector('div[id="not-found-root"]', { timeout: 60 * 1000 })
             ]);
