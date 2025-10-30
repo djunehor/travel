@@ -248,7 +248,7 @@ async function scrapeFlights({
 
     // Check cache first
     const redisClient = getRedisClient();
-    if (redisClient) {
+
         try {
             const cached = await redisClient.get(url);
             if (cached) {
@@ -258,7 +258,7 @@ async function scrapeFlights({
         } catch (err) {
             console.warn('⚠️ Redis get error:', err.message);
         }
-    }
+    
 
     let browser;
     let page;
@@ -318,9 +318,9 @@ async function scrapeFlights({
         };
 
         // Cache the result for 24 hours
-        if (redisClient && output.price) {
+        if (output.price) {
             try {
-                await redisClient.setex(url, 86400, JSON.stringify(output));
+                await redisClient.setex(url, 86400 * 3, JSON.stringify(output));
                 console.log(new Date().toLocaleString(), '✅ Cached flight data for 24 hours');
             } catch (err) {
                 console.warn('⚠️ Redis set error:', err.message);

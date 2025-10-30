@@ -47,7 +47,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
 
         // Check cache first
         const redisClient = getRedisClient();
-        if (redisClient) {
+  
             try {
                 const cached = await redisClient.get(url);
                 if (cached) {
@@ -57,7 +57,7 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
             } catch (err) {
                 console.warn('⚠️ Redis get error:', err.message);
             }
-        }
+        
         const l = await launchBrowser();
         browser = l.browser;
         page = l.page;
@@ -133,9 +133,9 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         };
 
         // Cache the result for 24 hours
-        if (redisClient && result.price) {
+        if (result.price) {
             try {
-                await redisClient.setex(url, 86400, JSON.stringify(result));
+                await redisClient.setex(url, 86400 * 7, JSON.stringify(result));
                 console.log(new Date().toLocaleString(), '✅ Cached accommodation data for 24 hours');
             } catch (err) {
                 console.warn('⚠️ Redis set error:', err.message);

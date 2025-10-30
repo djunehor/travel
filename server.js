@@ -163,8 +163,13 @@ async function processTask(taskId, requestData) {
             const destination = destinations[i];
             if (await checkCancelled(taskId)) return;
 
-            if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) {
-                logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
+            // if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) {
+            //     logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
+            //     break;
+            // }
+
+            if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 1) {
+                logTaskProgress(taskId, 'Reached maximum of 1 valid destinations');
                 break;
             }
 
@@ -271,6 +276,9 @@ async function processTask(taskId, requestData) {
                         departureDate: flightData.departureDate
                     }
                 });
+                try {
+                    await redisClient.setex(`TASK:${taskId}`, 3600, JSON.stringify(results));
+                } catch { }
 
                 logTaskProgress(taskId, `Successfully scraped ${destination.name} (total cost: $${totalCost})`);
 
@@ -330,7 +338,7 @@ async function getDestinationSuggestions(requestData, noCache = false) {
     // Cache the result for 24 hours
     if (redisClient && result?.destinations) {
         try {
-            await redisClient.setex(cacheKey, 3600, JSON.stringify(result.destinations));
+            await redisClient.setex(cacheKey, 86400 * 30, JSON.stringify(result.destinations));
             // console.log(new Date().toLocaleString(),'✅ Cached destination data for 1 hour');
         } catch (err) {
             console.warn('⚠️ Redis set error:', err.message);
@@ -399,7 +407,7 @@ app.post('/api/plan-vacation', async (req, res) => {
         saveDatabase();
 
         console.time(taskId)
-        
+
         setTimeout(() => cancelTask(taskId), 15 * 60 * 1000);
         processTask(taskId, req.body).then(() => console.timeEnd(taskId)).catch(err => {
             console.error(`Error processing task ${taskId}:`, err);
@@ -445,6 +453,17 @@ app.get('/api/task/:taskId', async (req, res) => {
             ? logsResult[0].values.map(([message, ts]) => ({ message, timestamp: ts }))
             : [];
 
+        if (!response.data) {
+            try {
+                const cached = await redisClient.get(url);
+                if (cached) {
+                    console.log(new Date().toLocaleString(), '✅ Returning task cached data');
+                    response.data = JSON.parse(cached);
+                }
+            } catch (err) {
+                console.warn('⚠️ Redis get error:', err.message);
+            }
+        }
         response.logs = logs;
 
         res.json(response);

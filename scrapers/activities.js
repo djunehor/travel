@@ -46,7 +46,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
 
         // Check cache first
         const redisClient = getRedisClient();
-        if (redisClient) {
+   
             try {
                 const cached = await redisClient.get(url);
                 if (cached) {
@@ -56,7 +56,7 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
             } catch (err) {
                 console.warn('⚠️ Redis get error:', err.message);
             }
-        }
+        
 
         const l = await launchBrowser();
         browser = l.browser;
@@ -123,9 +123,9 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         };
 
         // Cache the result for 24 hours
-        if (redisClient && result.activities.length > 0) {
+        if (result.activities.length > 0) {
             try {
-                await redisClient.setex(url, 86400, JSON.stringify(result));
+                await redisClient.setex(url, 86400 * 7, JSON.stringify(result));
                 console.log(new Date().toLocaleString(), '✅ Cached activities data for 24 hours');
             } catch (err) {
                 console.warn('⚠️ Redis set error:', err.message);
