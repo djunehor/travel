@@ -94,8 +94,11 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
 
         // Wait for property card
         try {
-            await page.waitForSelector('div[data-testid="property-card"]', { timeout: 120 * 1000 });
-            console.log(new Date().toLocaleString(), '✅ Accommodation results loaded');
+            const [output, _] = await Promise.all([
+                page.waitForSelector('div[data-testid="property-card"]', { timeout: 120 * 1000 }),
+                page.waitForSelector('div[data-testid="properties-list-empty-state"]', { timeout: 120 * 1000 })
+            ]);
+            console.log(new Date().toLocaleString(), output ? '✅ Accommodation results loaded' : '⚠️ No accommodation found');
         } catch (e) {
             console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for accommodation results');
             fs.writeFileSync(`${process.cwd()}/html/accommodation_error_${Date.now()}.html`, await page.content());

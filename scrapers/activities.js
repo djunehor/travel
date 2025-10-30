@@ -68,11 +68,16 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
 
         await closeCookieBanner(page);
 
+        const emptySelector = 'sector[id="no-results-block"]';
         // Wait for activity cards
         const activitySelector = 'section div[class="activity-card-block activity-card-block--grid"]';
 
         try {
-            await page.waitForSelector(activitySelector, { timeout: 120 * 1000 })
+            const [activitiesElement, _] = await Promise.all([
+                page.waitForSelector(activitySelector, { timeout: 120 * 1000 }),
+                page.waitForSelector(emptySelector, { timeout: 120 * 1000 })
+            ]);
+            console.log(new Date().toLocaleString(), activitiesElement ? '✅ Activity results loaded' : '⚠️ No activities found');
         } catch (e) {
             console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for activity results');
 

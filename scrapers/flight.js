@@ -283,7 +283,11 @@ async function scrapeFlights({
         await closeLoginModal(page);
 
         try {
-            await waitForFlightResults(page);
+            const [output, _] = await Promise.all([
+                waitForFlightResults(page),
+                page.waitForSelector('div[id="not-found-root"]', { timeout: 60000 })
+            ]);
+            console.log(new Date().toLocaleString(), output ? '✅ Flight results loaded' : '⚠️ No flights found');
         } catch (e) {
             console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for flight results');
 
