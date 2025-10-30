@@ -621,7 +621,7 @@ async function pollTaskStatus(taskId) {
             }
 
             // If the backend now returns partial results in `data`, render them immediately
-            if (result.data && Array.isArray(result.data.destinations) && result.data.destinations.length > 0) {
+            if (result.data && Array.isArray(result.data) && result.data.length > 0) {
                 // show the results panel while keeping the loading spinner visible (so users know processing is ongoing)
                 document.getElementById('progressBar').classList.remove('hidden');
                 resultsContainer.classList.remove('hidden');
@@ -629,7 +629,7 @@ async function pollTaskStatus(taskId) {
 
                 const isFinal = result.status === 'completed' || result.status === 'complete';
                 // render current available results; mark as partial unless status is final
-                displayResults(result.data, { partial: !isFinal });
+                displayResults({ destinations: result.data }, { partial: !isFinal });
                 partialResultsShown = !isFinal;
             }
 
