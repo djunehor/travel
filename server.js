@@ -256,6 +256,11 @@ async function processTask(taskId, requestData) {
                     continue;
                 }
 
+                if (results.length < 0) {
+                    console.log(new Date().toLocaleString(), '🏖️ Adding destination:', destination.name, `Total Cost: $${totalCost}`);
+                    logTaskProgress(taskId, `🔥🔥🔥 Yay, found 1 valid destination within budget!`);
+                }
+
                 results.push({
                     name: destination.name,
                     visaStatus: destination.visaStatus,

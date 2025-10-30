@@ -47,17 +47,17 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
 
         // Check cache first
         const redisClient = getRedisClient();
-  
-            try {
-                const cached = await redisClient.get(url);
-                if (cached) {
-                    console.log(new Date().toLocaleString(), '✅ Returning cached accommodation data');
-                    return JSON.parse(cached);
-                }
-            } catch (err) {
-                console.warn('⚠️ Redis get error:', err.message);
+
+        try {
+            const cached = await redisClient.get(url);
+            if (cached) {
+                console.log(new Date().toLocaleString(), '✅ Returning cached accommodation data');
+                return JSON.parse(cached);
             }
-        
+        } catch (err) {
+            console.warn('⚠️ Redis get error:', err.message);
+        }
+
         const l = await launchBrowser();
         browser = l.browser;
         page = l.page;

@@ -249,16 +249,16 @@ async function scrapeFlights({
     // Check cache first
     const redisClient = getRedisClient();
 
-        try {
-            const cached = await redisClient.get(url);
-            if (cached) {
-                console.log(new Date().toLocaleString(), '✅ Returning cached flight data');
-                return JSON.parse(cached);
-            }
-        } catch (err) {
-            console.warn('⚠️ Redis get error:', err.message);
+    try {
+        const cached = await redisClient.get(url);
+        if (cached) {
+            console.log(new Date().toLocaleString(), '✅ Returning cached flight data');
+            return JSON.parse(cached);
         }
-    
+    } catch (err) {
+        console.warn('⚠️ Redis get error:', err.message);
+    }
+
 
     let browser;
     let page;
