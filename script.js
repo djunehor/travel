@@ -558,7 +558,7 @@ async function pollTaskStatus(taskId) {
     // Create logs container if it doesn't exist
     let logsContainer = spinnerContent.querySelector('#progressLogs');
     if (logsContainer) {
-        logsContainer.innerHTML = '';
+        logsContainer.remove();
     }
     logsContainer = document.createElement('div');
     logsContainer.id = 'progressLogs';

@@ -7,7 +7,7 @@ const path = require('path');
 const airportCodes = require('./country_airports.json');
 const countries = require('./countries.json');
 const { getRedisClient } = require('./helpers');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const { scrapeAccommodation, scrapeActivities, scrapeFlights } = require('./scrapers');
 const budgetRanges = {
@@ -159,7 +159,8 @@ async function processTask(taskId, requestData) {
         logTaskProgress(taskId, `Found ${destinations.length} potential destinations`);
 
         // Step 3: Scrape data for each destination and departure airport
-        for (const destination of destinations) {
+        for (const i in destinations) {
+            const destination = destinations[i];
             if (await checkCancelled(taskId)) return;
 
             if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) {
@@ -172,11 +173,12 @@ async function processTask(taskId, requestData) {
                 logTaskProgress(taskId, `Invalid departure airport code: ${requestData.departureCountry}`);
                 continue;
             }
+            console.log(new Date().toLocaleString(), `✈️ [${Number(i) + 1}/${destinations.length}] Processing destination: ${destination.name} (${destination.airportCode})`);
 
             try {
                 if (await checkCancelled(taskId)) return;
 
-                logTaskProgress(taskId, `Sourcing flight data for ${destination.name}`);
+                logTaskProgress(taskId, `[${Number(i) + 1}/${destinations.length}] Sourcing flight data for ${destination.name}`);
                 const adults = requestData.travelers.filter(t => t.type === 'adult').length;
                 const children = requestData.travelers.length - adults;
 
