@@ -28,7 +28,6 @@ async function closeCookieBanner(page) {
         if (el) {
             await el.click();
             console.log(new Date().toLocaleString(), '✅ Accepted Booking.com cookies');
-            await new Promise(resolve => setTimeout(resolve, 1000)); // wait for any potential navigation
         }
     } catch (e) { }
 }
@@ -75,7 +74,11 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         await closeCookieBanner(page);
 
         try {
-            await page.waitForSelector('button[aria-label="Dismiss sign-in info."]', { timeout: 5000 });
+            await Promise.all([
+                page.waitForSelector('button[aria-label="Dismiss sign-in info."]', { timeout: 5 * 1000 }),
+                page.waitForSelector('div[data-testid="property-card"]', { timeout: 5 * 1000 }),
+                page.waitForSelector('div[data-testid="properties-list-empty-state"]', { timeout: 5 * 1000 })
+            ])
         } catch (e) {
             console.log(new Date().toLocaleString(), 'No sign-in info banner to dismiss');
         }
@@ -95,8 +98,8 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
         // Wait for property card
         try {
             const [output, _] = await Promise.all([
-                page.waitForSelector('div[data-testid="property-card"]', { timeout: 120 * 1000 }),
-                page.waitForSelector('div[data-testid="properties-list-empty-state"]', { timeout: 120 * 1000 })
+                page.waitForSelector('div[data-testid="property-card"]', { timeout: 60 * 1000 }),
+                page.waitForSelector('div[data-testid="properties-list-empty-state"]', { timeout: 60 * 1000 })
             ]);
             console.log(new Date().toLocaleString(), output ? '✅ Accommodation results loaded' : '⚠️ No accommodation found');
         } catch (e) {

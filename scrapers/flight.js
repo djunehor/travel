@@ -225,8 +225,6 @@ async function waitForFlightResults(page, selector = 'ul[class*="FlightsResults_
 
         await new Promise(resolve => setTimeout(resolve, 1000));
     }
-
-    console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for flight results');
     return false;
 }
 
@@ -285,7 +283,7 @@ async function scrapeFlights({
         try {
             const [output, _] = await Promise.all([
                 waitForFlightResults(page),
-                page.waitForSelector('div[id="not-found-root"]', { timeout: 60000 })
+                page.waitForSelector('div[id="not-found-root"]', { timeout: 60 * 1000 })
             ]);
             console.log(new Date().toLocaleString(), output ? '✅ Flight results loaded' : '⚠️ No flights found');
         } catch (e) {

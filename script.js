@@ -519,7 +519,7 @@ async function submitForm() {
         }
 
         const { taskId } = await response.json();
-        console.log(new Date().toLocaleString(),'Task created:', taskId);
+        console.log(new Date().toLocaleString(), 'Task created:', taskId);
 
         // Poll for results
         await pollTaskStatus(taskId);
@@ -539,15 +539,17 @@ async function pollTaskStatus(taskId) {
     // Add logs container to the loading spinner
     const loadingSpinner = document.getElementById('loadingSpinner');
     const spinnerContent = loadingSpinner.querySelector('.bg-white');
-    
+
     // Create logs container if it doesn't exist
     let logsContainer = spinnerContent.querySelector('#progressLogs');
-    if (!logsContainer) {
-        logsContainer = document.createElement('div');
-        logsContainer.id = 'progressLogs';
-        logsContainer.className = 'mt-4 max-h-48 overflow-y-auto w-full';
-        spinnerContent.appendChild(logsContainer);
+    if (logsContainer) {
+        logsContainer.innerHTML = '';
     }
+    logsContainer = document.createElement('div');
+    logsContainer.id = 'progressLogs';
+    logsContainer.className = 'mt-4 max-h-48 overflow-y-auto w-full';
+    spinnerContent.appendChild(logsContainer);
+
 
     const poll = async () => {
         attempts++;
@@ -567,7 +569,7 @@ async function pollTaskStatus(taskId) {
             }
 
             const result = await response.json();
-            console.log(new Date().toLocaleString(),'Task status:', result.status);
+            console.log(new Date().toLocaleString(), 'Task status:', result.status);
 
             // Display new logs
             if (result.logs && result.logs.length > 0) {
@@ -576,13 +578,13 @@ async function pollTaskStatus(taskId) {
                     logEntry.className = 'text-sm text-gray-600 py-1 border-b border-gray-100';
                     logEntry.textContent = `${new Date(log.timestamp).toLocaleString()} => ${log.message}`;
                     logsContainer.appendChild(logEntry);
-                    
+
                     // Update last timestamp
                     if (log.timestamp > lastTimestamp) {
                         lastTimestamp = log.timestamp;
                     }
                 });
-                
+
                 // Auto-scroll to bottom
                 logsContainer.scrollTop = logsContainer.scrollHeight;
             }
