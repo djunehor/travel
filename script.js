@@ -607,7 +607,7 @@ async function pollTaskStatus(taskId) {
                 result.logs.forEach(log => {
                     const logEntry = document.createElement('p');
                     logEntry.className = 'text-sm text-gray-600 py-1 border-b border-gray-100';
-                    logEntry.textContent = `${new Date(log.timestamp).toLocaleString()} => ${log.message}`;
+                    logEntry.textContent = `${new Date(log.timestamp).toLocaleString()}   ${log.message}`;
                     logsContainer.appendChild(logEntry);
 
                     // Update last timestamp
@@ -619,8 +619,6 @@ async function pollTaskStatus(taskId) {
                 // Auto-scroll to bottom
                 logsContainer.scrollTop = logsContainer.scrollHeight;
             }
-
-            // If the backend now returns partial results in `data`, render them immediately
 
             // If the backend now returns partial results in `data`, render them immediately
             console.log('Polling result data:', result);
@@ -643,7 +641,7 @@ async function pollTaskStatus(taskId) {
                     // Remove the "still loading" banner if it exists
                     const banner = document.getElementById('loadingBanner');
                     if (banner) banner.remove();
-                    return;
+                    return; // Stop polling
                 }
 
                 // Add non-blocking "still loading" banner if not completed
@@ -671,10 +669,18 @@ async function pollTaskStatus(taskId) {
                         if (banner) banner.remove();
                     });
                 }
+
+                // CRITICAL: Continue polling for completion
+                if (result.status === 'pending' || result.status === 'processing') {
+                    if (attempts < maxAttempts) {
+                        pollTimeoutId = setTimeout(poll, 5000);
+                    }
+                }
+                return; // Don't fall through to other status checks
             }
 
-            else if (result.status === 'failed') {
-                // Task failed
+            // Handle other statuses only if no data was returned yet
+            if (result.status === 'failed') {
                 loadingSpinner.classList.add('hidden');
                 if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
                 currentTaskId = null;
@@ -682,13 +688,10 @@ async function pollTaskStatus(taskId) {
                 alert('Failed to plan vacation: ' + (result.error || 'Unknown error'));
                 return;
             } else if (result.status === 'pending' || result.status === 'processing') {
-                // Still processing, poll again
                 if (attempts < maxAttempts) {
                     pollTimeoutId = setTimeout(poll, 5000);
                 } else {
                     loadingSpinner.classList.add('hidden');
-
-                    // cancel the task on the server
                     fetch(`${baseUrl}/api/task/${taskId}/cancel`, {
                         method: 'POST',
                         headers: {
@@ -697,7 +700,6 @@ async function pollTaskStatus(taskId) {
                         }
                     });
                     alert('Request timed out. Please try again later.');
-
                 }
             } else if (result.status === 'cancelled') {
                 loadingSpinner.classList.add('hidden');
