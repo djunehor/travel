@@ -622,7 +622,8 @@ async function pollTaskStatus(taskId) {
 
             // If the backend now returns partial results in `data`, render them immediately
             console.log('Polling result data:', result);
-            if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+            if (result.data && result.data.destinations && Array.isArray(result.data.destinations) && result.data.destinations.length > 0) {
+                console.log('Received partial results:', result.data.destinations);
                 // Hide blocking loading spinner
                 loadingSpinner.classList.add('hidden');
                 if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
@@ -632,15 +633,18 @@ async function pollTaskStatus(taskId) {
                 resultsContainer.classList.remove('hidden');
                 formContainer.classList.add('hidden');
 
-                displayResults({ destinations: result.data }, { partial: result.status !== 'completed' });
+                console.log('Displaying results with partial flag:', result.status !== 'completed');
+                displayResults(result.data.destinations, { partial: result.status !== 'completed' });
+                console.log('Results displayed.');
 
-                if (result.status === 'completed' || result.data.length >= 3) {
+                if (result.status === 'completed' || result.data.destinations.length >= 3) {
                     console.log('Task completed or sufficient results received. Stopping polling.');
                     currentTaskId = null;
                     partialResultsShown = false;
                     document.getElementById('progressBar').classList.add('hidden');
                     // Remove the "still loading" banner if it exists
                     const banner = document.getElementById('loadingBanner');
+                    console.log('Removing loading banner:', banner);
                     if (banner) banner.remove();
                     return; // Stop polling
                 }
