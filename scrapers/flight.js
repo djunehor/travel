@@ -287,9 +287,9 @@ async function scrapeFlights({
         } catch (e) {
             console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for flight results');
 
-            fs.writeFileSync(`${process.cwd()}/html/flights_error_${Date.now()}.html`, await page.content());
+            // fs.writeFileSync(`${process.cwd()}/html/flights_error_${Date.now()}.html`, await page.content());
             // take screenshot for debugging
-            await page.screenshot({ path: `${process.cwd()}/screenshots/flights_${Date.now()}.png`, fullPage: true });
+            // await page.screenshot({ path: `${process.cwd()}/screenshots/flights_${Date.now()}.png`, fullPage: true });
         };
 
         // Extract flight data

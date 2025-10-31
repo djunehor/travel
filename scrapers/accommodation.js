@@ -104,9 +104,9 @@ async function scrapeAccommodation(destination, checkInStr, checkOutStr, budget,
             console.log(new Date().toLocaleString(), output ? '✅ Accommodation results loaded' : '⚠️ No accommodation found');
         } catch (e) {
             console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for accommodation results');
-            fs.writeFileSync(`${process.cwd()}/html/accommodation_error_${Date.now()}.html`, await page.content());
+            // fs.writeFileSync(`${process.cwd()}/html/accommodation_error_${Date.now()}.html`, await page.content());
             // take screenshot for debugging
-            await page.screenshot({ path: `${process.cwd()}/screenshots/accommodation_${Date.now()}.png`, fullPage: true });
+           // await page.screenshot({ path: `${process.cwd()}/screenshots/accommodation_${Date.now()}.png`, fullPage: true });
         };
 
         // Extract accommodation information

@@ -80,9 +80,9 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
         } catch (e) {
             console.log(new Date().toLocaleString(), '⚠️ Timeout waiting for activity results');
 
-            fs.writeFileSync(`${process.cwd()}/html/activies_error_${Date.now()}.html`, await page.content());
+            //fs.writeFileSync(`${process.cwd()}/html/activies_error_${Date.now()}.html`, await page.content());
             // take screenshot for debugging
-            await page.screenshot({ path: `${process.cwd()}/screenshots/activities_${Date.now()}.png`, fullPage: true });
+            // await page.screenshot({ path: `${process.cwd()}/screenshots/activities_${Date.now()}.png`, fullPage: true });
         };
 
 

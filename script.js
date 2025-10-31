@@ -534,7 +534,7 @@ async function submitForm() {
         }
 
         const { taskId } = await response.json();
-        console.log(new Date().toLocaleString(), 'Task created:', taskId);
+        // console.log(new Date().toLocaleString(), 'Task created:', taskId);
 
         // Track current task id and start polling
         currentTaskId = taskId;
@@ -600,7 +600,7 @@ async function pollTaskStatus(taskId) {
             }
 
             const result = await response.json();
-            console.log(new Date().toLocaleString(), 'Task status:', result.status);
+            // console.log(new Date().toLocaleString(), 'Task status:', result.status);
 
             // Display new logs
             if (result.logs && result.logs.length > 0) {
@@ -621,9 +621,9 @@ async function pollTaskStatus(taskId) {
             }
 
             // If the backend now returns partial results in `data`, render them immediately
-            console.log('Polling result data:', result);
+            // console.log('Polling result data:', result.data?.destinations);
             if (result.data && result.data.destinations && Array.isArray(result.data.destinations) && result.data.destinations.length > 0) {
-                console.log('Received partial results:', result.data.destinations);
+                // console.log('Received partial results:', result.data.destinations);
                 // Hide blocking loading spinner
                 loadingSpinner.classList.add('hidden');
                 if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
@@ -633,18 +633,18 @@ async function pollTaskStatus(taskId) {
                 resultsContainer.classList.remove('hidden');
                 formContainer.classList.add('hidden');
 
-                console.log('Displaying results with partial flag:', result.status !== 'completed');
-                displayResults(result.data.destinations, { partial: result.status !== 'completed' });
-                console.log('Results displayed.');
+                // console.log('Displaying results with partial flag:', result.status !== 'completed');
+                displayResults(result.data, { partial: result.status !== 'completed' });
+                // console.log('Results displayed.');
 
                 if (result.status === 'completed' || result.data.destinations.length >= 3) {
-                    console.log('Task completed or sufficient results received. Stopping polling.');
+                    // console.log('Task completed or sufficient results received. Stopping polling.');
                     currentTaskId = null;
                     partialResultsShown = false;
                     document.getElementById('progressBar').classList.add('hidden');
                     // Remove the "still loading" banner if it exists
                     const banner = document.getElementById('loadingBanner');
-                    console.log('Removing loading banner:', banner);
+                    // console.log('Removing loading banner:', banner);
                     if (banner) banner.remove();
                     return; // Stop polling
                 }
