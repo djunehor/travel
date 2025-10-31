@@ -634,7 +634,8 @@ async function pollTaskStatus(taskId) {
 
                 displayResults({ destinations: result.data }, { partial: result.status !== 'completed' });
 
-                if (result.status === 'completed') {
+                if (result.status === 'completed' || result.data.length >= 3) {
+                    console.log('Task completed or sufficient results received. Stopping polling.');
                     currentTaskId = null;
                     partialResultsShown = false;
                     document.getElementById('progressBar').classList.add('hidden');
