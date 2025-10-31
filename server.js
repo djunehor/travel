@@ -298,6 +298,7 @@ async function processTask(taskId, requestData) {
         logTaskProgress(taskId, `Task completed with ${results.length} destinations`);
 
     } catch (err) {
+        console.error(`Task ${taskId} caught error:`, err);
         if ((await checkCancelled(taskId))) return;
         logTaskProgress(taskId, `Task failed: ${err.message}`);
         updateTaskStatus(taskId, 'failed', null, err.message);
@@ -409,10 +410,12 @@ app.post('/api/plan-vacation', async (req, res) => {
         console.time(taskId)
 
         setTimeout(() => cancelTask(taskId), 15 * 60 * 1000);
-        processTask(taskId, req.body).then(() => console.timeEnd(taskId)).catch(err => {
-            console.error(`Error processing task ${taskId}:`, err);
-            updateTaskStatus(taskId, 'failed', null, err.message);
-        });
+        processTask(taskId, req.body)
+            .then(() => console.timeEnd(taskId))
+            .catch(err => {
+                console.error(`Error processing task ${taskId}:`, err);
+                updateTaskStatus(taskId, 'failed', null, err.message);
+            });
 
         res.json({ taskId, status: 'pending' });
     } catch (err) {
