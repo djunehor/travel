@@ -140,44 +140,73 @@ async function checkCancelled(taskId) {
 async function processTask(taskId, requestData) {
     const results = [];
     try {
+        console.log(new Date().toLocaleString(), `[${taskId}] START: processTask initiated`);
         logTaskProgress(taskId, `Processing task ${taskId}`);
 
         // Step 1: Check for cancellation
-        if (await checkCancelled(taskId)) return;
+        console.log(new Date().toLocaleString(), `[${taskId}] Checking initial cancellation status`);
+        if (await checkCancelled(taskId)) {
+            console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled at start`);
+            return;
+        }
 
         // Step 2: Get destination suggestions from LLM
+        console.log(new Date().toLocaleString(), `[${taskId}] Fetching destination suggestions from LLM`);
         logTaskProgress(taskId, 'Getting destination suggestions from LLM');
         let destinations = await getDestinationSuggestions(requestData);
+        console.log(new Date().toLocaleString(), `[${taskId}] Received ${destinations?.length || 0} destinations from LLM`);
 
         // Cancellation check after LLM call
-        if (await checkCancelled(taskId)) return;
+        if (await checkCancelled(taskId)) {
+            console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after LLM call`);
+            return;
+        }
 
         destinations.sort((a, b) => a.estimatedBudget - b.estimatedBudget);
+        console.log(new Date().toLocaleString(), `[${taskId}] Destinations sorted by budget`);
 
-        if (!destinations?.length) throw new Error('No suitable destinations found');
+        if (!destinations?.length) {
+            console.log(new Date().toLocaleString(), `[${taskId}] ERROR: No destinations returned from LLM`);
+            throw new Error('No suitable destinations found');
+        }
 
         logTaskProgress(taskId, `Found ${destinations.length} potential destinations`);
 
         // Step 3: Scrape data for each destination and departure airport
+        console.log(new Date().toLocaleString(), `[${taskId}] Starting scraping loop for ${destinations.length} destinations`);
         for (const i in destinations) {
             const destination = destinations[i];
-            if (await checkCancelled(taskId)) return;
+            console.log(new Date().toLocaleString(), `[${taskId}] LOOP iteration ${Number(i) + 1}/${destinations.length}: Processing ${destination.name}`);
 
-            if (results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length >= 3) {
+            if (await checkCancelled(taskId)) {
+                console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled in loop at iteration ${Number(i) + 1}`);
+                return;
+            }
+
+            const validResultsCount = results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length;
+            console.log(new Date().toLocaleString(), `[${taskId}] Current valid results count: ${validResultsCount}`);
+
+            if (validResultsCount >= 3) {
+                console.log(new Date().toLocaleString(), `[${taskId}] BREAK: Reached maximum of 3 valid destinations`);
                 logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
                 break;
             }
 
             const departure = airportCodes.find((s) => s.iata === requestData.departureCountry);
             if (!departure?.iata) {
+                console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Invalid departure airport ${requestData.departureCountry}`);
                 logTaskProgress(taskId, `Invalid departure airport code: ${requestData.departureCountry}`);
                 continue;
             }
             console.log(new Date().toLocaleString(), `✈️ [${Number(i) + 1}/${destinations.length}] Processing destination: ${destination.name} (${destination.airportCode})`);
 
             try {
-                if (await checkCancelled(taskId)) return;
+                if (await checkCancelled(taskId)) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before flight scraping`);
+                    return;
+                }
 
+                console.log(new Date().toLocaleString(), `[${taskId}] Scraping flights for ${destination.name}`);
                 logTaskProgress(taskId, `[${Number(i) + 1}/${destinations.length}] Sourcing flight data for ${destination.name}`);
                 const adults = requestData.travelers.filter(t => t.type === 'adult').length;
                 const children = requestData.travelers.length - adults;
@@ -190,17 +219,27 @@ async function processTask(taskId, requestData) {
                     adults,
                     children
                 });
+                console.log(new Date().toLocaleString(), `[${taskId}] Flight scraping complete for ${destination.name}:`, flightData?.price ? `$${flightData.price}` : 'NO PRICE');
 
-                if (await checkCancelled(taskId)) return;
+                if (await checkCancelled(taskId)) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after flight scraping`);
+                    return;
+                }
 
                 if (!flightData?.price || Number(flightData.price) > budgetRanges[requestData.budget].max) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Flight price invalid or exceeds budget for ${destination.name}`);
                     logTaskProgress(taskId, `Skipped ${destination.name}: Flight price exceeds budget`);
                     continue;
                 }
                 logTaskProgress(taskId, `Flight found for ${destination.name} at $${flightData.price}`);
 
                 // Accommodation
-                if (await checkCancelled(taskId)) return;
+                if (await checkCancelled(taskId)) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before accommodation scraping`);
+                    return;
+                }
+
+                console.log(new Date().toLocaleString(), `[${taskId}] Scraping accommodation for ${destination.name}`);
                 logTaskProgress(taskId, `Sourcing accommodation data for ${destination.name}`);
                 const accommodationData = await scrapeAccommodation(
                     destination.name,
@@ -210,22 +249,33 @@ async function processTask(taskId, requestData) {
                     adults,
                     children
                 );
+                console.log(new Date().toLocaleString(), `[${taskId}] Accommodation scraping complete for ${destination.name}:`, accommodationData?.price || 'NO PRICE');
 
-                if (await checkCancelled(taskId)) return;
+                if (await checkCancelled(taskId)) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after accommodation scraping`);
+                    return;
+                }
 
                 if (!accommodationData?.price || Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Accommodation price invalid or exceeds budget for ${destination.name}`);
                     logTaskProgress(taskId, `Skipped ${destination.name}: Accommodation price exceeds budget`);
                     continue;
                 }
                 logTaskProgress(taskId, `Accommodation found for ${destination.name} at $${accommodationData.pricePerNight} per night`);
 
                 if (Number(flightData.price) + Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Flight + Accommodation exceeds budget for ${destination.name}`);
                     logTaskProgress(taskId, `Skipped ${destination.name}: Flight + Accommodation exceeds budget`);
                     continue;
                 }
 
                 // Activities
-                if (await checkCancelled(taskId)) return;
+                if (await checkCancelled(taskId)) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before activities scraping`);
+                    return;
+                }
+
+                console.log(new Date().toLocaleString(), `[${taskId}] Scraping activities for ${destination.name}`);
                 logTaskProgress(taskId, `Sourcing activities data for ${destination.name}`);
                 let activitiesData = await scrapeActivities(
                     destination.name,
@@ -233,10 +283,15 @@ async function processTask(taskId, requestData) {
                     flightData.returnDate,
                     budgetRanges[requestData.budget].max - Number(flightData.price) - Number(accommodationData.price.replace(/\D/g, ''))
                 );
+                console.log(new Date().toLocaleString(), `[${taskId}] Activities scraping complete for ${destination.name}:`, activitiesData?.totalPrice || 'NO PRICE');
 
-                if (await checkCancelled(taskId)) return;
+                if (await checkCancelled(taskId)) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after activities scraping`);
+                    return;
+                }
 
                 if (!activitiesData?.totalPrice || activitiesData.totalPrice > budgetRanges[requestData.budget].max) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] Activities price invalid or exceeds budget, using empty activities`);
                     activitiesData = { activities: [], totalPrice: 0 };
                 }
                 logTaskProgress(taskId, `Activities found for ${destination.name} totaling $${activitiesData.totalPrice}`);
@@ -245,17 +300,20 @@ async function processTask(taskId, requestData) {
                 const totalCost = Number(flightData.price) +
                     Number(accommodationData.price.replace(/\D/g, '')) +
                     Number(activitiesData.totalPrice);
+                console.log(new Date().toLocaleString(), `[${taskId}] Total cost calculated for ${destination.name}: $${totalCost}`);
 
                 if (totalCost > budgetRanges[requestData.budget].max) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Total cost exceeds budget for ${destination.name}`);
                     logTaskProgress(taskId, `Skipped ${destination.name}: Total cost exceeds budget`);
                     continue;
                 }
 
-                if (results.length < 1) {
-                    console.log(new Date().toLocaleString(), '🏖️ Adding destination:', destination.name, `Total Cost: $${totalCost}`);
+                if (results.length === 0) {
+                    console.log(new Date().toLocaleString(), '🏖️ Adding first destination:', destination.name, `Total Cost: $${totalCost}`);
                     logTaskProgress(taskId, `🔥🔥🔥 Yay, found 1 valid destination within budget!`);
                 }
 
+                console.log(new Date().toLocaleString(), `[${taskId}] ADDING RESULT: ${destination.name} with cost $${totalCost}`);
                 results.push({
                     name: destination.name,
                     visaStatus: destination.visaStatus,
@@ -276,32 +334,52 @@ async function processTask(taskId, requestData) {
                         departureDate: flightData.departureDate
                     }
                 });
+                console.log(new Date().toLocaleString(), `[${taskId}] Results array now has ${results.length} destinations`);
+
                 try {
                     await redisClient.setex(`TASK:${taskId}`, 3600, JSON.stringify(results));
-                } catch { }
+                    console.log(new Date().toLocaleString(), `[${taskId}] Cached partial results to Redis`);
+                } catch (err) {
+                    console.warn(new Date().toLocaleString(), `[${taskId}] Failed to cache to Redis:`, err.message);
+                }
 
                 logTaskProgress(taskId, `Successfully scraped ${destination.name} (total cost: $${totalCost})`);
 
             } catch (err) {
+                console.log(new Date().toLocaleString(), `[${taskId}] ERROR scraping ${destination.name}:`, err.message);
                 logTaskProgress(taskId, `Error sourcing data for ${destination.name}: ${err.message}`);
                 continue;
             }
         }
 
+        console.log(new Date().toLocaleString(), `[${taskId}] LOOP COMPLETE: Finished processing all destinations. Results count: ${results.length}`);
+
         if (results.length < 1) {
+            console.log(new Date().toLocaleString(), `[${taskId}] ERROR: No results found after loop`);
             throw new Error('Could not retrieve complete data for any destination');
         }
 
+        console.log(new Date().toLocaleString(), `[${taskId}] Sorting ${results.length} results by cost`);
         // Sort by total cost
         results.sort((a, b) => a.estimatedCost.total - b.estimatedCost.total);
+
+        console.log(new Date().toLocaleString(), `[${taskId}] UPDATING STATUS TO COMPLETED with ${results.length} destinations`);
         updateTaskStatus(taskId, 'completed', { destinations: results });
+        console.log(new Date().toLocaleString(), `[${taskId}] STATUS UPDATE COMPLETE`);
+
         logTaskProgress(taskId, `Task completed with ${results.length} destinations`);
+        console.log(new Date().toLocaleString(), `[${taskId}] END: processTask completed successfully`);
 
     } catch (err) {
-        console.error(`Task ${taskId} caught error:`, err);
-        if ((await checkCancelled(taskId))) return;
+        console.error(new Date().toLocaleString(), `[${taskId}] EXCEPTION CAUGHT:`, err);
+        if ((await checkCancelled(taskId))) {
+            console.log(new Date().toLocaleString(), `[${taskId}] Task was cancelled, not logging failure`);
+            return;
+        }
+        console.log(new Date().toLocaleString(), `[${taskId}] Logging task failure`);
         logTaskProgress(taskId, `Task failed: ${err.message}`);
         updateTaskStatus(taskId, 'failed', null, err.message);
+        console.log(new Date().toLocaleString(), `[${taskId}] END: processTask failed`);
     }
 }
 
