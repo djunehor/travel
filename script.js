@@ -621,32 +621,59 @@ async function pollTaskStatus(taskId) {
             }
 
             // If the backend now returns partial results in `data`, render them immediately
+
+            // If the backend now returns partial results in `data`, render them immediately
             console.log('Polling result data:', result);
             if (result.data && Array.isArray(result.data) && result.data.length > 0) {
+                // Hide blocking loading spinner
+                loadingSpinner.classList.add('hidden');
+                if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
+
+                // Show results
                 document.getElementById('progressBar').classList.remove('hidden');
                 resultsContainer.classList.remove('hidden');
                 formContainer.classList.add('hidden');
+
                 displayResults({ destinations: result.data }, { partial: result.status !== 'completed' });
 
                 if (result.status === 'completed') {
-                    loadingSpinner.classList.add('hidden');
-                    if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
-                    return; // Only stop polling when completed
+                    currentTaskId = null;
+                    partialResultsShown = false;
+                    document.getElementById('progressBar').classList.add('hidden');
+                    // Remove the "still loading" banner if it exists
+                    const banner = document.getElementById('loadingBanner');
+                    if (banner) banner.remove();
+                    return;
+                }
+
+                // Add non-blocking "still loading" banner if not completed
+                if (!document.getElementById('loadingBanner')) {
+                    const banner = document.createElement('div');
+                    banner.id = 'loadingBanner';
+                    banner.className = 'bg-blue-50 border-l-4 border-blue-500 p-4 mb-4';
+                    banner.innerHTML = `
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mr-3"></div>
+                    <p class="text-blue-700 text-sm">Still searching for more destinations...</p>
+                </div>
+                <button id="stopSearchBtn" class="px-3 py-1 text-sm text-blue-700 hover:text-blue-900 font-medium">
+                    Stop Search
+                </button>
+            </div>
+        `;
+                    resultsContainer.insertBefore(banner, resultsContainer.firstChild);
+
+                    // Add click handler
+                    document.getElementById('stopSearchBtn').addEventListener('click', () => {
+                        cancelCurrentTask();
+                        const banner = document.getElementById('loadingBanner');
+                        if (banner) banner.remove();
+                    });
                 }
             }
 
-            if (result.status === 'completed') {
-                // Task completed, show results
-                loadingSpinner.classList.add('hidden');
-                if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');
-                currentTaskId = null;
-                //formContainer.classList.add('hidden');
-                document.getElementById('progressBar').classList.add('hidden');
-                resultsContainer.classList.remove('hidden');
-                displayResults(result.data, { partial: false });
-                partialResultsShown = false;
-                return;
-            } else if (result.status === 'failed') {
+            else if (result.status === 'failed') {
                 // Task failed
                 loadingSpinner.classList.add('hidden');
                 if (cancelLoadingBtn) cancelLoadingBtn.classList.add('hidden');

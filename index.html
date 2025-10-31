@@ -55,6 +55,17 @@
   }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    a {
+      color: #2563eb;
+      text-decoration: underline;
+    }
+
+    a:hover {
+      color: #1d4ed8;
+    }
+  </style>
 </head>
 
 <body class="bg-gray-50 min-h-screen">
@@ -206,7 +217,8 @@
         <p class="text-gray-700 font-medium">Finding your perfect vacation...</p>
         <!-- Cancel button to allow users to cancel the server task / polling -->
         <div class="mt-4 w-full text-center">
-          <button id="cancelLoadingBtn" type="button" class="hidden inline-block px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
+          <button id="cancelLoadingBtn" type="button"
+            class="hidden inline-block px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
             Cancel
           </button>
         </div>
