@@ -452,7 +452,9 @@ function buildDestinationPrompt(requestData) {
     1. Consider each traveler's nationality and residence when determining visa requirements. For example, a resident/citizen of Germany doesn't need visa to visit any schengen country
     2. If any traveler who's not a citizen of these countries holds a valid US, UK, or Schengen visa, consider destinations that offer visa-on-arrival or e-visa for such visa holders
     3. Exclude any country with US travel advisory status level 3 or 4 for any traveler's nationality
-    4. Based on visa preference:
+    4. Exclude the user's residence or passport country from suggestions
+    5. Visa preference is a scale. If someone selects "visa-free", only suggest visa-free destinations. If "visa-on-arrival", include visa-on-arrival destinations as well, and so on.
+    6. Based on visa preference:
         - "visa-free": Only suggest destinations where ALL travelers can enter without additional visa outside their passport/residence country
         - "visa-on-arrival": Include destinations with visa-on-arrival for ALL travelers based on their passport/residence country or existing valid visas
         - "short-processing": Include destinations with visa processing up to 4 weeks
