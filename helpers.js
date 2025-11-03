@@ -29,7 +29,7 @@ export function getRedisClient() {
     return redis;
 }
 
-function getDurationDays(duration) {
+export function getDurationDays(duration) {
     if (!duration || typeof duration !== 'string') return 7; // default 7 days
 
     duration = duration.toLowerCase();
@@ -56,4 +56,59 @@ function getDurationDays(duration) {
 
     // fallback
     return 7;
+}
+
+// --- Helper Functions ---
+export function getDateRange(timeframe) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // local midnight
+
+    // helper: clone + add days
+    const addDays = (date, days) => {
+        const d = new Date(date.getTime());
+        d.setDate(d.getDate() + days);
+        return d;
+    };
+
+    let target;
+
+    if (typeof timeframe === 'number') {
+        target = addDays(today, timeframe);
+    } else {
+        switch (timeframe) {
+            case '1-month':        // within 1 month -> choose ~30 days from today
+                target = addDays(today, 15);
+                break;
+            case '1-3-months':     // start of range -> ~30 days
+                target = addDays(today, 45);
+                break;
+            case '3-6-months':     // start of range -> ~90 days
+                target = addDays(today, 90);
+                break;
+            case '6-plus-months':  // start -> ~180 days
+                target = addDays(today, 100);
+                break;
+            case 'next_week':
+                target = addDays(today, 7);
+                break;
+            case 'tomorrow':
+                target = addDays(today, 1);
+                break;
+            default:
+                // fallback: tomorrow
+                target = addDays(today, 1);
+        }
+    }
+
+    // safety: if computed date is not in the future (edge cases), use tomorrow
+    if (target <= today) {
+        console.warn('⚠️ Calculated date is not in the future; using tomorrow instead');
+        target = addDays(today, 1);
+    }
+
+    return target;
+}
+
+export function formatDate(date) {
+    return date.toISOString().split('T')[0];
 }

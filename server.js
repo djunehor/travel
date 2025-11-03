@@ -6,10 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const airportCodes = require('./country_airports.json');
 const countries = require('./countries.json');
-const { getRedisClient } = require('./helpers');
+const { getRedisClient, getDateRange, getDurationDays, formatDate } = require('./helpers');
 require('dotenv').config({ quiet: true });
 
-const { scrapeAccommodation, scrapeActivities, scrapeFlights } = require('./scrapers');
+const { scrapeAccommodation, scrapeActivities, scrapeFlights, scrapeFlightAccommodation } = require('./scrapers');
 const budgetRanges = {
     'under-500': { min: 0, max: 500 },
     '500-1000': { min: 500, max: 1000 },
@@ -173,7 +173,7 @@ async function processTask(taskId, requestData) {
         logTaskProgress(taskId, `Found ${destinations.length} potential destinations`);
 
         // Step 3: Scrape data for each destination and departure airport
-        console.log(new Date().toLocaleString(), `[${taskId}] Starting scraping loop for ${destinations.length} destinations`);
+        console.log(new Date().toLocaleString(), `[${taskId}] Starting sourcing loop for ${destinations.length} destinations`);
         for (const i in destinations) {
             const destination = destinations[i];
             console.log(new Date().toLocaleString(), `[${taskId}] LOOP iteration ${Number(i) + 1}/${destinations.length}: Processing ${destination.name}`);
@@ -183,10 +183,7 @@ async function processTask(taskId, requestData) {
                 return;
             }
 
-            const validResultsCount = results.filter((s) => s.estimatedCost.total <= destination.estimatedBudget).length;
-            console.log(new Date().toLocaleString(), `[${taskId}] Current valid results count: ${validResultsCount}`);
-
-            if (validResultsCount >= 3) {
+            if (results.length >= 3) {
                 console.log(new Date().toLocaleString(), `[${taskId}] BREAK: Reached maximum of 3 valid destinations`);
                 logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
                 break;
@@ -202,91 +199,62 @@ async function processTask(taskId, requestData) {
 
             try {
                 if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before flight scraping`);
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before flight+accommodation sourcing`);
                     return;
                 }
 
-                console.log(new Date().toLocaleString(), `[${taskId}] Scraping flights for ${destination.name}`);
+                console.log(new Date().toLocaleString(), `[${taskId}] sourcing flights+accommodation for ${destination.name}`);
                 logTaskProgress(taskId, `[${Number(i) + 1}/${destinations.length}] Sourcing flight data for ${destination.name}`);
                 const adults = requestData.travelers.filter(t => t.type === 'adult').length;
                 const children = requestData.travelers.length - adults;
 
-                const flightData = await scrapeFlights({
-                    departureAirport: departure.iata,
-                    destinationAirport: destination.airportCode,
-                    timeframe: requestData.timeframe,
-                    duration: requestData.duration,
-                    adults,
-                    children
-                });
-                console.log(new Date().toLocaleString(), `[${taskId}] Flight scraping complete for ${destination.name}:`, flightData?.price ? `$${flightData.price}` : 'NO PRICE');
+                const departureDate = getDateRange(requestData.timeframe);
+                const durationDays = getDurationDays(requestData.duration);
+                const returnDate = new Date(departureDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-                if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after flight scraping`);
-                    return;
-                }
-
-                if (!flightData?.price || Number(flightData.price) > budgetRanges[requestData.budget].max) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Flight price invalid or exceeds budget for ${destination.name}`);
-                    logTaskProgress(taskId, `Skipped ${destination.name}: Flight price exceeds budget`);
-                    continue;
-                }
-                logTaskProgress(taskId, `Flight found for ${destination.name} at $${flightData.price}`);
-
-                // Accommodation
-                if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before accommodation scraping`);
-                    return;
-                }
-
-                console.log(new Date().toLocaleString(), `[${taskId}] Scraping accommodation for ${destination.name}`);
-                logTaskProgress(taskId, `Sourcing accommodation data for ${destination.name}`);
-                const accommodationData = await scrapeAccommodation(
-                    destination.name,
-                    flightData.departureDate,
-                    flightData.returnDate,
-                    budgetRanges[requestData.budget].max - Number(flightData.price),
+                const flightPlusAccommodation = await scrapeFlightAccommodation(
+                    departure.iata,
+                    destination.airportCode,
+                    departureDate.toISOString().split('T')[0],
+                    returnDate.toISOString().split('T')[0],
+                    durationDays,
+                    budgetRanges[requestData.budget],
                     adults,
                     children
                 );
-                console.log(new Date().toLocaleString(), `[${taskId}] Accommodation scraping complete for ${destination.name}:`, accommodationData?.price || 'NO PRICE');
+                console.log(new Date().toLocaleString(), `[${taskId}] Flight+accommodation sourcing complete for ${destination.name}:`, flightPlusAccommodation?.price ? `$${flightPlusAccommodation.price}` : 'NO PRICE', flightPlusAccommodation?.price ? undefined : flightPlusAccommodation);
 
                 if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after accommodation scraping`);
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after flight+accommdation sourcing`);
                     return;
                 }
 
-                if (!accommodationData?.price || Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Accommodation price invalid or exceeds budget for ${destination.name}`);
-                    logTaskProgress(taskId, `Skipped ${destination.name}: Accommodation price exceeds budget`);
+                if (!flightPlusAccommodation?.price || Number(flightPlusAccommodation.price) > budgetRanges[requestData.budget].max) {
+                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Flight+accommodation price invalid or exceeds budget for ${destination.name}`);
+                    logTaskProgress(taskId, `Skipped ${destination.name}: Flight+accommodation price exceeds budget`);
                     continue;
                 }
-                logTaskProgress(taskId, `Accommodation found for ${destination.name} at $${accommodationData.pricePerNight} per night`);
-
-                if (Number(flightData.price) + Number(accommodationData.price.replace(/\D/g, '')) > budgetRanges[requestData.budget].max) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Flight + Accommodation exceeds budget for ${destination.name}`);
-                    logTaskProgress(taskId, `Skipped ${destination.name}: Flight + Accommodation exceeds budget`);
-                    continue;
-                }
+                logTaskProgress(taskId, `Flight+accommodation found for ${destination.name} at $${flightPlusAccommodation.price}`);
 
                 // Activities
                 if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before activities scraping`);
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before activities sourcing`);
                     return;
                 }
 
-                console.log(new Date().toLocaleString(), `[${taskId}] Scraping activities for ${destination.name}`);
+                console.log(new Date().toLocaleString(), `[${taskId}] sourcing activities for ${destination.name}`);
                 logTaskProgress(taskId, `Sourcing activities data for ${destination.name}`);
                 let activitiesData = await scrapeActivities(
                     destination.name,
-                    flightData.departureDate,
-                    flightData.returnDate,
-                    budgetRanges[requestData.budget].max - Number(flightData.price) - Number(accommodationData.price.replace(/\D/g, ''))
+                    departureDate.toISOString().split('T')[0],
+                    returnDate.toISOString().split('T')[0],
+                    durationDays,
+                    budgetRanges[requestData.budget].max - Number(flightPlusAccommodation.price)
                 );
-                console.log(new Date().toLocaleString(), `[${taskId}] Activities scraping complete for ${destination.name}:`, activitiesData?.totalPrice || 'NO PRICE');
+                console.log(new Date().toLocaleString(), `[${taskId}] Activities sourcing complete for ${destination.name}:`, activitiesData?.totalPrice || 'NO PRICE');
 
                 if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after activities scraping`);
+                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after activities sourcing`);
                     return;
                 }
 
@@ -297,9 +265,7 @@ async function processTask(taskId, requestData) {
                 logTaskProgress(taskId, `Activities found for ${destination.name} totaling $${activitiesData.totalPrice}`);
 
                 // Combine results
-                const totalCost = Number(flightData.price) +
-                    Number(accommodationData.price.replace(/\D/g, '')) +
-                    Number(activitiesData.totalPrice);
+                const totalCost = Number(flightPlusAccommodation.price) + Number(activitiesData.totalPrice);
                 console.log(new Date().toLocaleString(), `[${taskId}] Total cost calculated for ${destination.name}: $${totalCost}`);
 
                 if (totalCost > budgetRanges[requestData.budget].max) {
@@ -320,18 +286,20 @@ async function processTask(taskId, requestData) {
                     visaProcessingTime: destination.visaProcessingTime,
                     visaRequirements: destination.visaRequirements,
                     estimatedCost: {
-                        flights: flightData.price,
-                        accommodation: Number(accommodationData.price.replace(/\D/g, '')),
+                        flights: flightPlusAccommodation.price,
+                        accommodation: 0,
                         activities: activitiesData.totalPrice,
                         total: totalCost
                     },
-                    flightDetails: flightData,
-                    accommodationSuggestion: `<a href="${accommodationData.url}" target="_blank">${accommodationData.name}</a><br>${accommodationData.address}<br>Rating: ${accommodationData.rating} (${accommodationData.reviews} reviews)<br>Price: ${accommodationData.price} (${accommodationData.pricePerNight} per night)<br>Perks: ${accommodationData.perks || ''}<br><a href="${accommodationData.url}" target="_blank">View on Booking.com</a>`,
+                    flightDetails: {
+
+                    },
+                    accommodationSuggestion: `<a href="${flightPlusAccommodation.url}" target="_blank">${flightPlusAccommodation.name}</a><br>${flightPlusAccommodation.address}<br>Rating: ${flightPlusAccommodation.rating} (${flightPlusAccommodation.reviews} reviews)<br>Price: ${flightPlusAccommodation.price} (${flightPlusAccommodation.pricePerNight} per night)<br>Perks: ${flightPlusAccommodation.perks || ''}<br><a href="${flightPlusAccommodation.url}" target="_blank">View on Booking.com</a>`,
                     topActivities: activitiesData.activities,
                     timeline: {
                         visaApplication: destination.visaTimeline,
                         bookingDeadline: calculateBookingDeadline(requestData.timeframe),
-                        departureDate: flightData.departureDate
+                        departureDate: departureDate.toISOString().split('T')[0],
                     }
                 });
                 console.log(new Date().toLocaleString(), `[${taskId}] Results array now has ${results.length} destinations`);
@@ -346,7 +314,7 @@ async function processTask(taskId, requestData) {
                 logTaskProgress(taskId, `Successfully scraped ${destination.name} (total cost: $${totalCost})`);
 
             } catch (err) {
-                console.log(new Date().toLocaleString(), `[${taskId}] ERROR scraping ${destination.name}:`, err.message);
+                console.log(new Date().toLocaleString(), `[${taskId}] ERROR sourcing ${destination.name}:`, err.message);
                 logTaskProgress(taskId, `Error sourcing data for ${destination.name}: ${err.message}`);
                 continue;
             }

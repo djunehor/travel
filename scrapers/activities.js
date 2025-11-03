@@ -32,12 +32,11 @@ async function closeCookieBanner(page) {
     } catch (e) { }
 }
 
-async function scrapeActivities(destination, checkInStr, checkOutStr, budget) {
+async function scrapeActivities(destination, checkInStr, checkOutStr, durationDays, budget) {
 
     let browser;
     let page;
     try {
-        const durationDays = (new Date(checkOutStr) - new Date(checkInStr)) / (1000 * 60 * 60 * 24);
 
         const maxPrice = Math.round(budget / durationDays);
         const minPrice = Math.min(1, Math.floor(maxPrice * 0.5));

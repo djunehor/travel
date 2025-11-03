@@ -822,9 +822,9 @@ function displayResults(response, { partial = false } = {}) {
 
                             <div>
                                 <h4 class="font-semibold text-gray-900 mb-2">Flight Details</h4>
-                                <p class="text-sm text-gray-600">Airline: ${dest.flightDetails.airline}</p>
-                                <p class="text-sm text-gray-600">Duration: ${dest.flightDetails.duration}</p>
-                                <p class="text-sm text-gray-600">Layovers: ${dest.flightDetails.layovers}</p>
+                                <p class="text-sm text-gray-600">Airline: ${dest.flightDetails.airline || 'N/A'}</p>
+                                <p class="text-sm text-gray-600">Duration: ${dest.flightDetails.duration || 'N/A'}</p>
+                                <p class="text-sm text-gray-600">Layovers: ${dest.flightDetails.layovers || 'N/A'}</p>
                                 <p class="text-sm text-gray-700 mt-2">Estimated: <span class="font-semibold">$${parseFloat(dest.estimatedCost.flights).toFixed(2)}</span></p>
                             </div>
 
