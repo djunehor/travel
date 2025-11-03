@@ -413,7 +413,7 @@ function buildDestinationPrompt(requestData) {
     - Travel timeframe: ${timeframe}
     - Trip duration: ${duration}
     - Visa preference: ${visaPreference}
-    - Travel interests: ${travelStyles.join(', ')}
+    - Travel interests: ${travelStyles ? travelStyles.join(', ') : 'N/A'}
     - Departing from: ${countries.find((a) => a.code === airportCodes.find((s) => s.iata === requestData.departureCountry).country_code).name} (${requestData.departureCountry})
     
     IMPORTANT VISA REQUIREMENTS RULES:
