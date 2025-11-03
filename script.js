@@ -507,6 +507,12 @@ function collectFormData() {
 async function submitForm() {
     const formData = collectFormData();
 
+    // validate form
+    if(!formData.budget || !formData.timeframe || !formData.duration || !formData.departureCountry || !formData.visaPreference || !formData.travelStyles) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+
     // Show loading spinner
     loadingSpinner.classList.remove('hidden');
     // Show cancel button and reset cancellation state

@@ -414,7 +414,7 @@ function buildDestinationPrompt(requestData) {
     - Trip duration: ${duration}
     - Visa preference: ${visaPreference}
     - Travel interests: ${travelStyles ? travelStyles.join(', ') : 'N/A'}
-    - Departing from: ${countries.find((a) => a.code === airportCodes.find((s) => s.iata === requestData.departureCountry).country_code).name} (${requestData.departureCountry})
+    - Departing from: ${countries.find((a) => a.code === airportCodes.find((s) => s.iata === requestData.departureCountry)?.country_code).name} (${requestData?.departureCountry})
     
     IMPORTANT VISA REQUIREMENTS RULES:
     1. Consider each traveler's nationality and residence when determining visa requirements. For example, a resident/citizen of Germany doesn't need visa to visit any schengen country
@@ -446,19 +446,24 @@ function buildDestinationPrompt(requestData) {
 // API: Create task
 app.post('/api/plan-vacation', async (req, res) => {
     try {
+        const requestData = req.body;
+        // validate
+        if (!requestData.budget || !requestData.timeframe || !requestData.duration || !requestData.departureCountry || !requestData.visaPreference || !requestData.travelStyles) {
+            return res.status(400).json({ error: 'Missing required fields in request data' });
+        }
         const taskId = generateTaskId();
         const now = Date.now();
 
         db.run(
             `INSERT INTO tasks (id, status, request_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-            [taskId, 'pending', JSON.stringify(req.body), now, now]
+            [taskId, 'pending', JSON.stringify(requestData), now, now]
         );
         saveDatabase();
 
         console.time(taskId)
 
         setTimeout(() => cancelTask(taskId), 15 * 60 * 1000);
-        processTask(taskId, req.body)
+        processTask(taskId, requestData)
             .then(() => console.timeEnd(taskId))
             .catch(err => {
                 console.error(`Error processing task ${taskId}:`, err);
