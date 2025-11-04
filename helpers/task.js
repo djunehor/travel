@@ -1,7 +1,7 @@
 import { saveDatabase } from './database.js';
 import { getRedisClient } from './redis.js';
-import { getAirportByIata, getEligibleDestinations } from './destination.js';
-import { getDateRange, getDurationDays } from './date.js'
+import { getEligibleDestinations } from './destination.js';
+import { getDateRange, getDurationDays, calculateBookingDeadline } from './date.js'
 import { scrapeFlightAccommodation } from '../scrapers/flight_accommodation.js'
 import { scrapeActivities } from '../scrapers/activities.js'
 

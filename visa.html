@@ -118,8 +118,9 @@
         </div>
     </div>
 
+
     <script>
-        // Base API URL (Update if necessary)
+        // Base API URL 
         const API_BASE = "https://vacation-planner.shagital.com";
 
         const form = document.getElementById('eligibilityForm');
@@ -131,16 +132,40 @@
         const errorAlert = document.getElementById('errorAlert');
         const errorMessageSpan = document.getElementById('errorMessage');
 
-        // Helper function to dynamically check if all required inputs are filled
+        // --- CORRECTED: Only checks validity, returns boolean ---
         const checkRequiredFields = () => {
             const requiredFields = ['nationality', 'residence', 'visaPreference'];
-            const allFilled = requiredFields.every(id => document.getElementById(id).value.trim() !== '');
-            submitBtn.disabled = !allFilled;
+            return requiredFields.every(id => document.getElementById(id).value.trim() !== '');
         };
 
-        // Initial check and attach listeners for real-time validation
-        document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', checkRequiredFields));
-        checkRequiredFields(); // Run on load
+        // --- CORRECTED: Centralized State Management Function ---
+        const setLoadingState = (isLoading) => {
+            if (isLoading) {
+                submitBtn.disabled = true;
+                loadingSpinner.classList.remove('hidden');
+                buttonText.textContent = 'Checking...';
+            } else {
+                // Restore non-loading state
+                loadingSpinner.classList.add('hidden');
+                buttonText.textContent = 'Check Access Now';
+
+                // Re-enable the button ONLY IF all required fields are filled.
+                const allFieldsValid = checkRequiredFields();
+                submitBtn.disabled = !allFieldsValid;
+            }
+        };
+        // ----------------------------------------------------
+
+        // Initial setup: Attach listeners for real-time validation
+        document.querySelectorAll('input, select').forEach(el => {
+            el.addEventListener('input', () => {
+                // Update button disabled state only if not currently loading
+                if (loadingSpinner.classList.contains('hidden')) {
+                    setLoadingState(false);
+                }
+            });
+        });
+        setLoadingState(false); // Run on load to set initial disabled state
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -148,33 +173,26 @@
             // 1. Prepare UI for loading state
             destinationList.innerHTML = '';
             errorAlert.classList.add('hidden');
-            submitBtn.disabled = true;
-            loadingSpinner.classList.remove('hidden');
-            buttonText.textContent = 'Checking...';
+            setLoadingState(true); // Disable button and show spinner
 
-            // 2. Gather ONLY required data (no more filler fields needed in the UI)
+            // 2. Gather data
             const nationality = document.getElementById('nationality').value.trim();
             const residence = document.getElementById('residence').value.trim();
             const visasInput = document.getElementById('visas').value.trim();
             const visaPreference = document.getElementById('visaPreference').value;
 
-            // --- MINIMAL REQUEST BODY ---
             const requestData = {
                 nationality: nationality,
                 residence: residence,
-                // Convert comma-separated string to array
                 visas: visasInput ? visasInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s) : [],
                 visaPreference: visaPreference,
             };
-            // -----------------------------
 
             try {
                 // 3. Send API Request
                 const response = await fetch(`${API_BASE}/api/check-travel`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(requestData)
                 });
 
@@ -192,32 +210,33 @@
                 if (destinations.length === 0) {
                     destinationList.innerHTML = '<p class="text-gray-500">No destinations match your current travel documents and visa preference. Try relaxing your preference or checking another passport/residence combination.</p>';
                 } else {
+                    // ... (Destination list rendering logic) ...
                     destinations.forEach(dest => {
                         const isSimpleAccess = dest.visaStatus === 'visa-free' || dest.visaStatus === 'visa-on-arrival';
 
                         const item = document.createElement('div');
                         item.className = 'border p-4 rounded-lg bg-white shadow-sm hover:shadow-md transition';
                         item.innerHTML = `
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                                    <span class="flag-emoji">${dest.emoji || '🌍'}</span>
-                                    ${dest.name} 
-                                    <span class="ml-2 text-sm font-medium text-indigo-500">(${dest.countryCode})</span>
-                                </h3>
-                                <span class="px-3 py-1 text-sm font-semibold rounded-full ${isSimpleAccess ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                                    ${dest.visaStatus.toUpperCase().replace('-', ' ')}
-                                </span>
-                            </div>
-                            <p class="text-sm text-gray-600 mb-1">
-                                <strong>Processing:</strong> ${dest.visaProcessingTime}
-                            </p>
-                            <p class="text-sm text-gray-600">
-                                <strong>Timeline:</strong> ${dest.visaTimeline}
-                            </p>
-                            <p class="text-xs text-gray-400 mt-2">
-                                Requirements: ${dest.visaRequirements.join(', ')}
-                            </p>
-                        `;
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                                <span class="flag-emoji">${dest.emoji || '🌍'}</span>
+                                ${dest.name} 
+                                <span class="ml-2 text-sm font-medium text-indigo-500">(${dest.countryCode})</span>
+                            </h3>
+                            <span class="px-3 py-1 text-sm font-semibold rounded-full ${isSimpleAccess ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                                ${dest.visaStatus.toUpperCase().replace('-', ' ')}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-1">
+                            <strong>Processing:</strong> ${dest.visaProcessingTime}
+                        </p>
+                        <p class="text-sm text-gray-600">
+                            <strong>Timeline:</strong> ${dest.visaTimeline}
+                        </p>
+                        <p class="text-xs text-gray-400 mt-2">
+                            Requirements: ${dest.visaRequirements.join(', ')}
+                        </p>
+                    `;
                         destinationList.appendChild(item);
                     });
                 }
@@ -230,13 +249,10 @@
                 console.error('Fetch error:', error);
             } finally {
                 // 6. Restore UI state
-                loadingSpinner.classList.add('hidden');
-                buttonText.textContent = 'Check Access Now';
-                checkRequiredFields();
+                setLoadingState(false); // Re-enable button if fields are valid
             }
         });
     </script>
-
 </body>
 
 </html>
