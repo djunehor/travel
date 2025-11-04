@@ -1,18 +1,17 @@
-const puppeteer = require('puppeteer-extra')
-const { getRedisClient } = require('../helpers');
-
+import puppeteer from 'puppeteer-extra'
 // Add stealth plugin and use defaults (all tricks to hide puppeteer usage)
-const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+// Add adblocker plugin to block all ads and trackers (saves bandwidth)
+import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker';
+
+import { getRedisClient } from '../helpers/redis.js';
+
 puppeteer.use(StealthPlugin())
 
-// Add adblocker plugin to block all ads and trackers (saves bandwidth)
-const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
 puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
 
-const anonymizeUA = require('puppeteer-extra-plugin-anonymize-ua')
+import anonymizeUA from 'puppeteer-extra-plugin-anonymize-ua';
 puppeteer.use(anonymizeUA())
-
-const fs = require('fs');
 
 async function launchBrowser() {
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
@@ -32,7 +31,7 @@ async function closeCookieBanner(page) {
     } catch (e) { }
 }
 
-async function scrapeActivities(destination, checkInStr, checkOutStr, durationDays, budget) {
+export async function scrapeActivities(destination, checkInStr, checkOutStr, durationDays, budget) {
 
     let browser;
     let page;
@@ -140,5 +139,3 @@ async function scrapeActivities(destination, checkInStr, checkOutStr, durationDa
         if (browser) await browser.close();
     }
 }
-
-module.exports = scrapeActivities;

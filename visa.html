@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Visa Access Checker</title>
+    <!-- Primary Meta Tags -->
+    <meta name="title" content="Vacation Planner | Plan Your Perfect Getaway with Visa Requirements in Mind">
+    <meta name="description"
+        content="Easily plan your dream vacation with our interactive travel planner. Get personalized destination ideas based on budget, visa requirements, and travel style.">
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://vacation-planner-demo.netlify.app/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://vacation-planner-demo.netlify.app/" />
+    <meta property="og:title" content="Vacation Planner | Plan Your Perfect Getaway" />
+    <meta property="og:description"
+        content="Discover destinations that match your budget, visa preference, and travel style. Plan smarter, travel happier." />
+    <meta property="og:image" content="https://vacation-planner-demo.netlify.app/og-image.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://vacation-planner-demo.netlify.app/" />
+    <meta property="twitter:title" content="Vacation Planner | Plan Your Perfect Getaway" />
+    <meta property="twitter:description"
+        content="Smart vacation planning tool that considers your visa type, travel budget, and preferences." />
+    <meta property="twitter:image" content="https://vacation-planner-demo.netlify.app/og-image.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+
+    <!-- Additional SEO Enhancements -->
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="Vacation Planner Team">
+    <meta name="keywords"
+        content="vacation planner, travel visa, trip planning, visa-free destinations, travel itinerary, travel budget tool">
+
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Optional: Custom styles for better alignment of the flag emoji */
+        .flag-emoji {
+            font-size: 1.5rem;
+            line-height: 1;
+            margin-right: 0.5rem;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen p-4">
+
+    <div class="max-w-xl mx-auto bg-white shadow-xl rounded-lg p-6 sm:p-8 mt-10">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">🛂 Visa Access Checker</h1>
+        <p class="text-gray-600 mb-8">Find destinations you can access based purely on your travel documents.</p>
+
+        <form id="eligibilityForm" class="grid grid-cols-1 gap-6">
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-1">
+                    <label for="nationality" class="block text-sm font-medium text-gray-700">Nationality (ISO2: e.g.,
+                        **NG**)</label>
+                    <input type="text" id="nationality" value="NG"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 uppercase"
+                        placeholder="NG" required>
+                </div>
+                <div class="col-span-1">
+                    <label for="residence" class="block text-sm font-medium text-gray-700">Residence (ISO2: e.g.,
+                        **DE**)</label>
+                    <input type="text" id="residence" value="DE"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 uppercase"
+                        placeholder="DE" required>
+                </div>
+                <div class="col-span-2">
+                    <label for="visas" class="block text-sm font-medium text-gray-700">Held Visas (Comma-separated:
+                        e.g., **UK, US**)</label>
+                    <input type="text" id="visas" value="UK"
+                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                        placeholder="e.g., UK, SCHENGEN">
+                </div>
+            </div>
+
+            <div>
+                <label for="visaPreference" class="block text-sm font-medium text-gray-700">Max Visa Requirement
+                    Accepted</label>
+                <select id="visaPreference" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    required>
+                    <option value="visa-free" selected>Visa-Free Max</option>
+                    <option value="visa-on-arrival">Visa-on-Arrival Max</option>
+                    <option value="short-processing">E-Visa Max</option>
+                    <option value="any-processing">Any Visa</option>
+                </select>
+            </div>
+
+            <div class="pt-4">
+                <button type="submit" id="submitBtn"
+                    class="w-full py-3 px-4 bg-indigo-600 text-white font-semibold rounded-md shadow-lg hover:bg-indigo-700 transition duration-150"
+                    disabled>
+                    <span id="loadingSpinner"
+                        class="hidden animate-spin h-5 w-5 mr-3 border-b-2 border-white rounded-full"></span>
+                    <span id="buttonText">Check Access Now</span>
+                </button>
+            </div>
+        </form>
+
+        <div id="results" class="mt-10 border-t pt-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4" id="resultsTitle"></h2>
+            <div id="destinationList" class="space-y-4">
+            </div>
+            <div id="errorAlert"
+                class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4"
+                role="alert">
+                <strong class="font-bold">Error:</strong>
+                <span id="errorMessage" class="block sm:inline"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Base API URL (Update if necessary)
+        const API_BASE = "https://vacation-planner.shagital.com";
+
+        const form = document.getElementById('eligibilityForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const buttonText = document.getElementById('buttonText');
+        const resultsTitle = document.getElementById('resultsTitle');
+        const destinationList = document.getElementById('destinationList');
+        const errorAlert = document.getElementById('errorAlert');
+        const errorMessageSpan = document.getElementById('errorMessage');
+
+        // Helper function to dynamically check if all required inputs are filled
+        const checkRequiredFields = () => {
+            const requiredFields = ['nationality', 'residence', 'visaPreference'];
+            const allFilled = requiredFields.every(id => document.getElementById(id).value.trim() !== '');
+            submitBtn.disabled = !allFilled;
+        };
+
+        // Initial check and attach listeners for real-time validation
+        document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', checkRequiredFields));
+        checkRequiredFields(); // Run on load
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // 1. Prepare UI for loading state
+            destinationList.innerHTML = '';
+            errorAlert.classList.add('hidden');
+            submitBtn.disabled = true;
+            loadingSpinner.classList.remove('hidden');
+            buttonText.textContent = 'Checking...';
+
+            // 2. Gather ONLY required data (no more filler fields needed in the UI)
+            const nationality = document.getElementById('nationality').value.trim();
+            const residence = document.getElementById('residence').value.trim();
+            const visasInput = document.getElementById('visas').value.trim();
+            const visaPreference = document.getElementById('visaPreference').value;
+
+            // --- MINIMAL REQUEST BODY ---
+            const requestData = {
+                nationality: nationality,
+                residence: residence,
+                // Convert comma-separated string to array
+                visas: visasInput ? visasInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s) : [],
+                visaPreference: visaPreference,
+            };
+            // -----------------------------
+
+            try {
+                // 3. Send API Request
+                const response = await fetch(`${API_BASE}/api/check-travel`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || `HTTP error! status: ${response.status}`);
+                }
+
+                // 4. Handle Success and Display Results
+                const destinations = result.data || [];
+
+                resultsTitle.textContent = `Found ${destinations.length} Eligible Destinations`;
+
+                if (destinations.length === 0) {
+                    destinationList.innerHTML = '<p class="text-gray-500">No destinations match your current travel documents and visa preference. Try relaxing your preference or checking another passport/residence combination.</p>';
+                } else {
+                    destinations.forEach(dest => {
+                        const isSimpleAccess = dest.visaStatus === 'visa-free' || dest.visaStatus === 'visa-on-arrival';
+
+                        const item = document.createElement('div');
+                        item.className = 'border p-4 rounded-lg bg-white shadow-sm hover:shadow-md transition';
+                        item.innerHTML = `
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-xl font-bold text-gray-800 flex items-center">
+                                    <span class="flag-emoji">${dest.emoji || '🌍'}</span>
+                                    ${dest.name} 
+                                    <span class="ml-2 text-sm font-medium text-indigo-500">(${dest.countryCode})</span>
+                                </h3>
+                                <span class="px-3 py-1 text-sm font-semibold rounded-full ${isSimpleAccess ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                                    ${dest.visaStatus.toUpperCase().replace('-', ' ')}
+                                </span>
+                            </div>
+                            <p class="text-sm text-gray-600 mb-1">
+                                <strong>Processing:</strong> ${dest.visaProcessingTime}
+                            </p>
+                            <p class="text-sm text-gray-600">
+                                <strong>Timeline:</strong> ${dest.visaTimeline}
+                            </p>
+                            <p class="text-xs text-gray-400 mt-2">
+                                Requirements: ${dest.visaRequirements.join(', ')}
+                            </p>
+                        `;
+                        destinationList.appendChild(item);
+                    });
+                }
+
+            } catch (error) {
+                // 5. Handle Error
+                errorMessageSpan.textContent = error.message;
+                errorAlert.classList.remove('hidden');
+                resultsTitle.textContent = 'Error during search';
+                console.error('Fetch error:', error);
+            } finally {
+                // 6. Restore UI state
+                loadingSpinner.classList.add('hidden');
+                buttonText.textContent = 'Check Access Now';
+                checkRequiredFields();
+            }
+        });
+    </script>
+
+</body>
+
+</html>

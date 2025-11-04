@@ -1,16 +1,15 @@
-const puppeteer = require('puppeteer-extra')
-const { getRedisClient } = require('../helpers');
-const fs = require('fs');
+import puppeteer from 'puppeteer-extra'
+import { getRedisClient } from '../helpers/redis.js';
 
 // Add stealth plugin and use defaults (all tricks to hide puppeteer usage)
-const StealthPlugin = require('puppeteer-extra-plugin-stealth')
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 puppeteer.use(StealthPlugin())
 
 // Add adblocker plugin to block all ads and trackers (saves bandwidth)
-const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker')
+import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker';
 puppeteer.use(AdblockerPlugin({ blockTrackers: true }))
 
-const anonymizeUA = require('puppeteer-extra-plugin-anonymize-ua')
+import anonymizeUA from 'puppeteer-extra-plugin-anonymize-ua';
 puppeteer.use(anonymizeUA())
 
 async function launchBrowser() {
@@ -32,7 +31,7 @@ async function closeCookieBanner(page) {
 }
 
 // --- Main Scraper ---
-async function scrapeFlightAccommodation(origin, destination, checkInStr, checkOutStr, durationDays, budgetRange, adults, children) {
+export async function scrapeFlightAccommodation(origin, destination, checkInStr, checkOutStr, durationDays, budgetRange, adults, children) {
 
     let browser;
     let page;
@@ -174,13 +173,3 @@ async function scrapeFlightAccommodation(origin, destination, checkInStr, checkO
         if (browser) await browser.close();
     }
 }
-
-if (require.main === module) {
-    (async () => {
-        const result = await scrapeFlightAccommodation('LOS', 'FRA', '2025-11-20', '2025-11-25', { min: 500, max: 1500 }, 1, 0);
-        console.log('Scrape result:', result);
-        process.exit(0);
-    })();
-}
-
-module.exports = scrapeFlightAccommodation;

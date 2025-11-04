@@ -1,34 +1,3 @@
-import Redis from 'ioredis';
-// --- Redis Setup ---
-let redis = null;
-
-
-export function getRedisClient() {
-
-    if (!redis && process.env.REDIS_URL) {
-        try {
-            redis = new Redis(process.env.REDIS_URL, {
-                maxRetriesPerRequest: 3,
-                retryStrategy(times) {
-                    if (times > 3) return null;
-                    return Math.min(times * 200, 1000);
-                }
-            });
-
-            redis.on('error', (err) => {
-                console.warn('⚠️ Redis connection error:', err.message);
-                redis = null;
-            });
-
-            console.log(new Date().toLocaleString(), '✅ Redis client initialized');
-        } catch (err) {
-            console.warn('⚠️ Failed to initialize Redis:', err.message);
-            redis = null;
-        }
-    }
-    return redis;
-}
-
 export function getDurationDays(duration) {
     if (!duration || typeof duration !== 'string') return 7; // default 7 days
 
@@ -111,4 +80,14 @@ export function getDateRange(timeframe) {
 
 export function formatDate(date) {
     return date.toISOString().split('T')[0];
+}
+
+export function calculateBookingDeadline(timeframe) {
+    const map = {
+        '1-month': '1 week before departure',
+        '1-3-months': '2-3 weeks before departure',
+        '3-6-months': '4-6 weeks before departure',
+        '6-plus-months': '2-3 months before departure'
+    };
+    return map[timeframe] || '2 weeks before departure';
 }

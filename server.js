@@ -1,452 +1,26 @@
-const express = require('express');
-const cors = require('cors');
-const { OpenAI } = require('openai');
-const initSqlJs = require('sql.js');
-const fs = require('fs');
-const path = require('path');
-const airportCodes = require('./country_airports.json');
-const countries = require('./countries.json');
-const { getRedisClient, getDateRange, getDurationDays, formatDate } = require('./helpers');
-require('dotenv').config({ quiet: true });
-
-const { scrapeAccommodation, scrapeActivities, scrapeFlights, scrapeFlightAccommodation } = require('./scrapers');
-const budgetRanges = {
-    'under-500': { min: 0, max: 500 },
-    '500-1000': { min: 500, max: 1000 },
-    '1000-2000': { min: 1000, max: 2000 },
-    '2000-5000': { min: 2000, max: 5000 },
-    'over-5000': { min: 5000, max: 50000 }
-};
+import express, { json } from 'express';
+import cors from 'cors';
+import { getRedisClient } from './helpers/redis.js';
+import { initDatabase, setupDabatase, saveDatabase } from './helpers/database.js';
+import { generateTaskId, processTask, updateTaskStatus, cancelTask } from './helpers/task.js';
+import { getEligibleDestinations, getFlagEmoji } from './helpers/destination.js'
+import * as dotenv from 'dotenv';
+dotenv.config({ quiet: true });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-
-// OpenAI client
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// Database
-let db;
-const dbPath = path.join(__dirname, 'vacation_planner.db');
+app.use(json());
 
 const redisClient = getRedisClient();
-
-async function initDatabase() {
-    const SQL = await initSqlJs();
-
-    if (fs.existsSync(dbPath)) {
-        const buffer = fs.readFileSync(dbPath);
-        db = new SQL.Database(buffer);
-    } else {
-        db = new SQL.Database();
-    }
-
-    db.run(`
-        CREATE TABLE IF NOT EXISTS tasks (
-            id TEXT PRIMARY KEY,
-            status TEXT NOT NULL,
-            request_data TEXT NOT NULL,
-            result_data TEXT,
-            error_message TEXT,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
-        )
-    `);
-
-    db.run(`
-        CREATE TABLE IF NOT EXISTS task_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            task_id TEXT NOT NULL,
-            message TEXT NOT NULL,
-            timestamp INTEGER NOT NULL,
-            FOREIGN KEY (task_id) REFERENCES tasks(id)
-        )
-    `);
-
-    saveDatabase();
-}
-
-function saveDatabase() {
-    fs.writeFileSync(dbPath, Buffer.from(db.export()));
-}
-
-function generateTaskId() {
-    return `TASK${Date.now()}${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-}
-
-function logTaskProgress(taskId, message) {
-    const timestamp = Date.now();
-    db.run(
-        `INSERT INTO task_logs (task_id, message, timestamp) VALUES (?, ?, ?)`,
-        [taskId, message, timestamp]
-    );
-    saveDatabase();
-}
-
-function calculateBookingDeadline(timeframe) {
-    const map = {
-        '1-month': '1 week before departure',
-        '1-3-months': '2-3 weeks before departure',
-        '3-6-months': '4-6 weeks before departure',
-        '6-plus-months': '2-3 months before departure'
-    };
-    return map[timeframe] || '2 weeks before departure';
-}
-
-function updateTaskStatus(taskId, status, resultData = null, errorMessage = null) {
-    const now = Date.now();
-    db.run(
-        `UPDATE tasks SET status = ?, result_data = ?, error_message = ?, updated_at = ? WHERE id = ?`,
-        [status, resultData ? JSON.stringify(resultData) : null, errorMessage, now, taskId]
-    );
-    saveDatabase();
-}
-
-async function cancelTask(taskId) {
-    const now = Date.now();
-    db.run(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ? AND status = ?`, ['cancelled', now, taskId, 'pending']);
-    saveDatabase();
-
-    const redisClient = getRedisClient();
-    if (redisClient) {
-        await redisClient.set(`cancel:${taskId}`, '1', 'EX', 3600); // expire in 1 hour
-    }
-}
-
-// Helper to check if task is cancelled
-async function checkCancelled(taskId) {
-    // Redis check
-    if (redisClient) {
-        const cancelled = await redisClient.get(`cancel:${taskId}`);
-        if (cancelled) {
-            logTaskProgress(taskId, 'Task aborted by user - soft');
-            updateTaskStatus(taskId, 'cancelled');
-            return true;
-        }
-    }
-    // DB check fallback
-    const statusCheck = db.exec(`SELECT status FROM tasks WHERE id = ?`, [taskId]);
-    if (statusCheck.length && statusCheck[0].values.length && statusCheck[0].values[0][0] === 'cancelled') {
-        logTaskProgress(taskId, 'Task aborted by user - hard');
-        return true;
-    }
-    return false;
-}
-
-// Background processing
-async function processTask(taskId, requestData) {
-    const results = [];
-    try {
-        console.log(new Date().toLocaleString(), `[${taskId}] START: processTask initiated`);
-        logTaskProgress(taskId, `Processing task ${taskId}`);
-
-        // Step 1: Check for cancellation
-        console.log(new Date().toLocaleString(), `[${taskId}] Checking initial cancellation status`);
-        if (await checkCancelled(taskId)) {
-            console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled at start`);
-            return;
-        }
-
-        // Step 2: Get destination suggestions from LLM
-        console.log(new Date().toLocaleString(), `[${taskId}] Fetching destination suggestions from LLM`);
-        logTaskProgress(taskId, 'Getting destination suggestions from LLM');
-        let destinations = await getDestinationSuggestions(requestData);
-        console.log(new Date().toLocaleString(), `[${taskId}] Received ${destinations?.length || 0} destinations from LLM`);
-
-        // Cancellation check after LLM call
-        if (await checkCancelled(taskId)) {
-            console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after LLM call`);
-            return;
-        }
-
-        destinations.sort((a, b) => a.estimatedBudget - b.estimatedBudget);
-        console.log(new Date().toLocaleString(), `[${taskId}] Destinations sorted by budget`);
-
-        if (!destinations?.length) {
-            console.log(new Date().toLocaleString(), `[${taskId}] ERROR: No destinations returned from LLM`);
-            throw new Error('No suitable destinations found');
-        }
-
-        logTaskProgress(taskId, `Found ${destinations.length} potential destinations`);
-
-        // Step 3: Scrape data for each destination and departure airport
-        console.log(new Date().toLocaleString(), `[${taskId}] Starting sourcing loop for ${destinations.length} destinations`);
-        for (const i in destinations) {
-            const destination = destinations[i];
-            console.log(new Date().toLocaleString(), `[${taskId}] LOOP iteration ${Number(i) + 1}/${destinations.length}: Processing ${destination.name}`);
-
-            if (await checkCancelled(taskId)) {
-                console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled in loop at iteration ${Number(i) + 1}`);
-                return;
-            }
-
-            if (results.length >= 3) {
-                console.log(new Date().toLocaleString(), `[${taskId}] BREAK: Reached maximum of 3 valid destinations`);
-                logTaskProgress(taskId, 'Reached maximum of 3 valid destinations');
-                break;
-            }
-
-            const departure = airportCodes.find((s) => s.iata === requestData.departureCountry);
-            if (!departure?.iata) {
-                console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Invalid departure airport ${requestData.departureCountry}`);
-                logTaskProgress(taskId, `Invalid departure airport code: ${requestData.departureCountry}`);
-                continue;
-            }
-            console.log(new Date().toLocaleString(), `✈️ [${Number(i) + 1}/${destinations.length}] Processing destination: ${destination.name} (${destination.airportCode})`);
-
-            try {
-                if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before flight+accommodation sourcing`);
-                    return;
-                }
-
-                console.log(new Date().toLocaleString(), `[${taskId}] sourcing flights+accommodation for ${destination.name}`);
-                logTaskProgress(taskId, `[${Number(i) + 1}/${destinations.length}] Sourcing flight data for ${destination.name}`);
-                const adults = requestData.travelers.filter(t => t.type === 'adult').length;
-                const children = requestData.travelers.length - adults;
-
-                const departureDate = getDateRange(requestData.timeframe);
-                const durationDays = getDurationDays(requestData.duration);
-                const returnDate = new Date(departureDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
-
-                const flightPlusAccommodation = await scrapeFlightAccommodation(
-                    departure.iata,
-                    destination.airportCode,
-                    departureDate.toISOString().split('T')[0],
-                    returnDate.toISOString().split('T')[0],
-                    durationDays,
-                    budgetRanges[requestData.budget],
-                    adults,
-                    children
-                );
-                console.log(new Date().toLocaleString(), `[${taskId}] Flight+accommodation sourcing complete for ${destination.name}:`, flightPlusAccommodation?.price ? `$${flightPlusAccommodation.price}` : 'NO PRICE', flightPlusAccommodation?.price ? undefined : flightPlusAccommodation);
-
-                if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after flight+accommdation sourcing`);
-                    return;
-                }
-
-                if (!flightPlusAccommodation?.price || Number(flightPlusAccommodation.price) > budgetRanges[requestData.budget].max) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Flight+accommodation price invalid or exceeds budget for ${destination.name}`);
-                    logTaskProgress(taskId, `Skipped ${destination.name}: Flight+accommodation price exceeds budget`);
-                    continue;
-                }
-                logTaskProgress(taskId, `Flight+accommodation found for ${destination.name} at $${flightPlusAccommodation.price}`);
-
-                // Activities
-                if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled before activities sourcing`);
-                    return;
-                }
-
-                console.log(new Date().toLocaleString(), `[${taskId}] sourcing activities for ${destination.name}`);
-                logTaskProgress(taskId, `Sourcing activities data for ${destination.name}`);
-                let activitiesData = await scrapeActivities(
-                    destination.name,
-                    departureDate.toISOString().split('T')[0],
-                    returnDate.toISOString().split('T')[0],
-                    durationDays,
-                    budgetRanges[requestData.budget].max - Number(flightPlusAccommodation.price)
-                );
-                console.log(new Date().toLocaleString(), `[${taskId}] Activities sourcing complete for ${destination.name}:`, activitiesData?.totalPrice || 'NO PRICE');
-
-                if (await checkCancelled(taskId)) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after activities sourcing`);
-                    return;
-                }
-
-                if (!activitiesData?.totalPrice || activitiesData.totalPrice > budgetRanges[requestData.budget].max) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] Activities price invalid or exceeds budget, using empty activities`);
-                    activitiesData = { activities: [], totalPrice: 0 };
-                }
-                logTaskProgress(taskId, `Activities found for ${destination.name} totaling $${activitiesData.totalPrice}`);
-
-                // Combine results
-                const totalCost = Number(flightPlusAccommodation.price) + Number(activitiesData.totalPrice);
-                console.log(new Date().toLocaleString(), `[${taskId}] Total cost calculated for ${destination.name}: $${totalCost}`);
-
-                if (totalCost > budgetRanges[requestData.budget].max) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] SKIP: Total cost exceeds budget for ${destination.name}`);
-                    logTaskProgress(taskId, `Skipped ${destination.name}: Total cost exceeds budget`);
-                    continue;
-                }
-
-                if (results.length === 0) {
-                    console.log(new Date().toLocaleString(), '🏖️ Adding first destination:', destination.name, `Total Cost: $${totalCost}`);
-                    logTaskProgress(taskId, `🔥🔥🔥 Yay, found 1 valid destination within budget!`);
-                }
-
-                console.log(new Date().toLocaleString(), `[${taskId}] ADDING RESULT: ${destination.name} with cost $${totalCost}`);
-                results.push({
-                    name: destination.name,
-                    visaStatus: destination.visaStatus,
-                    visaProcessingTime: destination.visaProcessingTime,
-                    visaRequirements: destination.visaRequirements,
-                    estimatedCost: {
-                        flights: flightPlusAccommodation.price,
-                        accommodation: 0,
-                        activities: activitiesData.totalPrice,
-                        total: totalCost
-                    },
-                    flightDetails: {
-
-                    },
-                    accommodationSuggestion: `<a href="${flightPlusAccommodation.url}" target="_blank">${flightPlusAccommodation.name}</a><br>${flightPlusAccommodation.address}<br>Rating: ${flightPlusAccommodation.rating} (${flightPlusAccommodation.reviews} reviews)<br>Price: ${flightPlusAccommodation.price} (${flightPlusAccommodation.pricePerNight} per night)<br>Perks: ${flightPlusAccommodation.perks || ''}<br><a href="${flightPlusAccommodation.url}" target="_blank">View on Booking.com</a>`,
-                    topActivities: activitiesData.activities,
-                    timeline: {
-                        visaApplication: destination.visaTimeline,
-                        bookingDeadline: calculateBookingDeadline(requestData.timeframe),
-                        departureDate: departureDate.toISOString().split('T')[0],
-                    }
-                });
-                console.log(new Date().toLocaleString(), `[${taskId}] Results array now has ${results.length} destinations`);
-
-                try {
-                    await redisClient.setex(`TASK:${taskId}`, 3600, JSON.stringify(results));
-                    console.log(new Date().toLocaleString(), `[${taskId}] Cached partial results to Redis`);
-                } catch (err) {
-                    console.warn(new Date().toLocaleString(), `[${taskId}] Failed to cache to Redis:`, err.message);
-                }
-
-                logTaskProgress(taskId, `Successfully scraped ${destination.name} (total cost: $${totalCost})`);
-
-            } catch (err) {
-                console.log(new Date().toLocaleString(), `[${taskId}] ERROR sourcing ${destination.name}:`, err.message);
-                logTaskProgress(taskId, `Error sourcing data for ${destination.name}: ${err.message}`);
-                continue;
-            }
-        }
-
-        console.log(new Date().toLocaleString(), `[${taskId}] LOOP COMPLETE: Finished processing all destinations. Results count: ${results.length}`);
-
-        if (results.length < 1) {
-            console.log(new Date().toLocaleString(), `[${taskId}] ERROR: No results found after loop`);
-            throw new Error('Could not retrieve complete data for any destination');
-        }
-
-        console.log(new Date().toLocaleString(), `[${taskId}] Sorting ${results.length} results by cost`);
-        // Sort by total cost
-        results.sort((a, b) => a.estimatedCost.total - b.estimatedCost.total);
-
-        console.log(new Date().toLocaleString(), `[${taskId}] UPDATING STATUS TO COMPLETED with ${results.length} destinations`);
-        updateTaskStatus(taskId, 'completed', { destinations: results });
-        console.log(new Date().toLocaleString(), `[${taskId}] STATUS UPDATE COMPLETE`);
-
-        logTaskProgress(taskId, `Task completed with ${results.length} destinations`);
-        console.log(new Date().toLocaleString(), `[${taskId}] END: processTask completed successfully`);
-
-    } catch (err) {
-        console.error(new Date().toLocaleString(), `[${taskId}] EXCEPTION CAUGHT:`, err);
-        if ((await checkCancelled(taskId))) {
-            console.log(new Date().toLocaleString(), `[${taskId}] Task was cancelled, not logging failure`);
-            return;
-        }
-        console.log(new Date().toLocaleString(), `[${taskId}] Logging task failure`);
-        logTaskProgress(taskId, `Task failed: ${err.message}`);
-        updateTaskStatus(taskId, 'failed', null, err.message);
-        console.log(new Date().toLocaleString(), `[${taskId}] END: processTask failed`);
-    }
-}
-
-// OpenAI helper
-async function getDestinationSuggestions(requestData, noCache = false) {
-    const redisClient = getRedisClient();
-    const cacheKey = `destinations:${JSON.stringify(requestData)}`;
-
-    if (redisClient && !noCache) {
-        try {
-            const cached = await redisClient.get(cacheKey);
-            if (cached) {
-                console.log(new Date().toLocaleString(), '✅ Returning cached destination data');
-                return JSON.parse(cached);
-            }
-        } catch (err) {
-            console.warn('⚠️ Redis get error:', err.message);
-        }
-    }
-
-    const prompt = buildDestinationPrompt(requestData);
-
-    const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-            { role: 'system', content: 'You are a travel expert providing destination suggestions for international travelers.' },
-            { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        response_format: { type: 'json_object' }
-    });
-
-    const result = JSON.parse(response.choices[0].message.content);
-
-    // Cache the result for 24 hours
-    if (redisClient && result?.destinations) {
-        try {
-            await redisClient.setex(cacheKey, 86400 * 30, JSON.stringify(result.destinations));
-            // console.log(new Date().toLocaleString(),'✅ Cached destination data for 1 hour');
-        } catch (err) {
-            console.warn('⚠️ Redis set error:', err.message);
-        }
-    }
-    return result.destinations;
-}
-
-// Build prompt
-function buildDestinationPrompt(requestData) {
-    const { travelers, budget, timeframe, duration, visaPreference, travelStyles } = requestData;
-
-    const budgetRange = budgetRanges[budget];
-
-    const travelersInfo = travelers.map((t, i) =>
-        `Traveler ${i + 1}: ${t.name}, nationality: ${countries.find((s) => s.code === t.nationality).name}, residence: ${countries.find((s) => s.code === t.residence).name}, existing visas/residence permit: ${t.visas.join(', ') || 'none'}`
-    ).join('\n');
-
-    const prompt = `Suggest 15 suitable vacation destinations for the following travelers:
-    TRAVELERS:
-    ${travelersInfo}
-    
-    REQUIREMENTS:
-    - Budget: $${budgetRange.min} - $${budgetRange.max} (total for all travelers)
-    - Travel timeframe: ${timeframe}
-    - Trip duration: ${duration}
-    - Visa preference: ${visaPreference}
-    - Travel interests: ${travelStyles ? travelStyles.join(', ') : 'N/A'}
-    - Departing from: ${countries.find((a) => a.code === airportCodes.find((s) => s.iata === requestData.departureCountry)?.country_code).name} (${requestData?.departureCountry})
-    
-    IMPORTANT VISA REQUIREMENTS RULES:
-    1. Consider each traveler's nationality and residence when determining visa requirements. For example, a resident/citizen of Germany doesn't need visa to visit any schengen country
-    2. If any traveler who's not a citizen of these countries holds a valid US, UK, or Schengen visa, consider destinations that offer visa-on-arrival or e-visa for such visa holders
-    3. Exclude any country with US travel advisory status level 3 or 4 for any traveler's nationality
-    4. Exclude the user's residence or passport country from suggestions
-    5. Visa preference is a scale. If someone selects "visa-free", only suggest visa-free destinations. If "visa-on-arrival", include visa-on-arrival destinations as well, and so on.
-    6. Based on visa preference:
-        - "visa-free": Only suggest destinations where ALL travelers can enter without additional visa outside their passport/residence country
-        - "visa-on-arrival": Include destinations with visa-on-arrival for ALL travelers based on their passport/residence country or existing valid visas
-        - "short-processing": Include destinations with visa processing up to 4 weeks
-        - "any-processing": Include any destination regardless of visa processing time For each destination, provide:
-            1. name: Full destination name (city and country)
-            2. countryCode: ISO 2-letter country code
-            3. airportCode: IATA code of the main international airport
-            4. visaStatus: "visa-free" | "visa-on-arrival" | "e-visa" | "standard-visa"
-            5. visaProcessingTime: Estimated time (e.g., "No visa required", "15 minutes at airport", "3-5 business days", "2-3 weeks")
-            6. visaRequirements: Array of requirements (e.g., ["Valid passport", "Return ticket", "Proof of accommodation"])
-            7. visaTimeline: Brief explanation of entry requirement based on travelers' profiles, and visa processing if required. e.g holders of EU residence permit don't need visa to enter Spain OR 6-months bank statement showing balance of $100xnumber_of_days is required to apply for France Visa.
-            8. estimatedBudget: Rough estimate of total cost for this destination
-            9. reason: Why this destination is suitable based on the travelers' profiles and preferences
-            Return ONLY valid JSON in this exact format:
-            { "destinations": [ { "name": "Dubai, UAE", "countryCode": "AE", "airportCode": "DXB", "visaStatus": "visa-on-arrival", "visaProcessingTime": "15 minutes at airport", "visaRequirements": ["Valid passport with 6 months validity", "Return ticket", "Hotel booking"], "visaTimeline": "Get visa on arrival at Dubai airport. Present required documents at immigration.", "estimatedBudget": 1800, "reason": "Offers visa-on-arrival for Nigerian passport holders with valid US/UK/Schengen visa. Popular destination with excellent infrastructure." } ] } ;
-             `;
-
-    return prompt;
-}
+let db;
 
 // API: Create task
 app.post('/api/plan-vacation', async (req, res) => {
     try {
-        const requestData = req.body;
+        const requestData = req.body || {};
         // validate
         if (!requestData.budget || !requestData.timeframe || !requestData.duration || !requestData.departureCountry || !requestData.visaPreference || !requestData.travelStyles) {
             return res.status(400).json({ error: 'Missing required fields in request data' });
@@ -458,22 +32,101 @@ app.post('/api/plan-vacation', async (req, res) => {
             `INSERT INTO tasks (id, status, request_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
             [taskId, 'pending', JSON.stringify(requestData), now, now]
         );
-        saveDatabase();
+        saveDatabase(db);
 
         console.time(taskId)
 
-        setTimeout(() => cancelTask(taskId), 15 * 60 * 1000);
-        processTask(taskId, requestData)
+        setTimeout(() => cancelTask(db, taskId), 15 * 60 * 1000);
+        processTask(db, taskId, requestData)
             .then(() => console.timeEnd(taskId))
             .catch(err => {
                 console.error(`Error processing task ${taskId}:`, err);
-                updateTaskStatus(taskId, 'failed', null, err.message);
+                updateTaskStatus(db, taskId, 'failed', null, err.message);
             });
 
         res.json({ taskId, status: 'pending' });
     } catch (err) {
         console.error('Error creating task:', err);
         res.status(500).json({ error: 'Failed to create task' });
+    }
+});
+
+const CACHE_TTL = 86400 * 90; 
+
+app.post('/api/check-travel', async (req, res) => {
+    try {
+        const redisClient = getRedisClient();
+        const requestData = req.body || {};
+        const { nationality, residence, visas, visaPreference } = requestData;
+
+        // 1. Validate Input
+        if (!nationality || !residence || !visaPreference) {
+            return res.status(400).json({ error: 'Missing required fields: nationality, residence, and visaPreference are mandatory.' });
+        }
+        
+        // 2. Prepare Data and Generate Cache Key
+        const singleTraveler = {
+            name: 'Primary Traveler',
+            type: 'adult',
+            nationality: nationality,
+            residence: residence,
+            visas: visas || [],
+        };
+        
+        const minimalRequestData = {
+            travelers: [singleTraveler], 
+            visaPreference: visaPreference,
+            // Fillers required by getEligibleDestinations internal logic
+            budget: 'N/A',
+            timeframe: 'N/A',
+            duration: 'N/A',
+            departureCountry: 'N/A', 
+            travelStyles: [],
+        };
+
+        // Create a stable, deterministic key using JSON stringify for the critical inputs
+        const cacheKey = `visa_eligibility:${JSON.stringify({
+            t: minimalRequestData.travelers,
+            v: minimalRequestData.visaPreference,
+        })}`;
+        
+        // 3. Check Cache
+        const cachedResult = await redisClient.get(cacheKey);
+
+        if (cachedResult) {
+            console.log(`[CACHE HIT] Key: ${cacheKey}`);
+            // Parse the stored JSON string and return it immediately
+            const destinations = JSON.parse(cachedResult);
+            return res.json({ data: destinations });
+        }
+        
+        // 4. Cache Miss: Execute Logic
+        console.log(`[CACHE MISS] Key: ${cacheKey}. Calculating...`);
+        
+        let destinations = getEligibleDestinations(db, minimalRequestData).map((s) => {
+            // Apply flag emoji and enrich data
+            return {
+                ...s,
+                emoji: getFlagEmoji(s.countryCode)
+            }
+        });
+        
+        // 5. Set Cache
+        // Store the final, enriched array of destinations as a JSON string with an expiration time
+        await redisClient.set(cacheKey, JSON.stringify(destinations), 'EX', CACHE_TTL);
+        console.log(`[CACHE SET] TTL: ${CACHE_TTL}s`);
+
+        res.json({ data: destinations });
+        
+    } catch (err) {
+        // Log the error but continue execution for non-critical failures (like a transient Redis connection error)
+        console.error('Error getting travel details or Redis operation failed:', err);
+        // Do NOT return res.status(500) if the only failure was Redis. Only return 500 if core logic failed.
+        
+        // If the error is not a fatal code execution error, but only a cache failure, you might still proceed with the response.
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to get travel details' });
+        }
     }
 });
 
@@ -529,8 +182,57 @@ app.get('/api/task/:taskId', async (req, res) => {
     }
 });
 
+// Get all airports
 app.get('/api/airports', (_, res) => {
-    res.json(airportCodes);
+    try {
+        const result = db.exec(
+            `SELECT a.iata, a.name, a.city, c.iso2 as country_code, c.name as country_name
+             FROM airports a
+             JOIN countries c ON a.country_id = c.id
+             ORDER BY c.name, a.name`
+        );
+        
+        if (!result.length || !result[0].values.length) {
+            return res.json([]);
+        }
+        
+        const airports = result[0].values.map(([iata, name, city, countryCode, countryName]) => ({
+            iata,
+            name,
+            city,
+            country_code: countryCode,
+            country_name: countryName
+        }));
+        
+        res.json(airports);
+    } catch (err) {
+        console.error('Error fetching airports:', err);
+        res.status(500).json({ error: 'Failed to fetch airports' });
+    }
+});
+
+// Get all countries
+app.get('/api/countries', (_, res) => {
+    try {
+        const result = db.exec(
+            `SELECT id, name, iso2 FROM countries ORDER BY name`
+        );
+        
+        if (!result.length || !result[0].values.length) {
+            return res.json([]);
+        }
+        
+        const countries = result[0].values.map(([id, name, iso2]) => ({
+            id,
+            name,
+            code: iso2
+        }));
+        
+        res.json(countries);
+    } catch (err) {
+        console.error('Error fetching countries:', err);
+        res.status(500).json({ error: 'Failed to fetch countries' });
+    }
 });
 
 // API: Cancel task
@@ -551,7 +253,7 @@ app.post('/api/task/:taskId/cancel', async (req, res) => {
         // Update status to cancelled
         const now = Date.now();
         db.run(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`, ['cancelled', now, taskId]);
-        saveDatabase();
+        saveDatabase(db);
 
         // Optional: set a Redis flag so the running process can stop early
         const redisClient = getRedisClient();
@@ -566,11 +268,13 @@ app.post('/api/task/:taskId/cancel', async (req, res) => {
     }
 });
 
-
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
-initDatabase().then(() => {
+initDatabase().then((_) => {
+    db = _;
+    setupDabatase(db);
+    console.log(new Date().toLocaleString(), '✅ Database initialized successfully')
     app.listen(PORT, () => console.log(new Date().toLocaleString(), `Server running on port ${PORT}`));
 }).catch(err => {
     console.error('Failed to initialize database:', err);
