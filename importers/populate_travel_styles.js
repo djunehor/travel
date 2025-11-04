@@ -21,37 +21,63 @@ async function populateTravelStyles() {
         return;
     }
 
-    // Default: Give every country at least some attributes
-    // You can refine this later with actual data
+    // --- REVISED TRAVEL STYLE MAPPING FOR ACCURACY ---
     const travelStyleMapping = {
-        // Beach countries
-        beach: ['MV', 'MU', 'SC', 'FJ', 'BS', 'BB', 'JM', 'TH', 'ID', 'MY', 'PH', 'VN', 'GR', 'ES', 'IT', 'HR', 'PT', 'CY', 'MT', 'TR', 'EG', 'TN', 'MA', 'MX', 'CR', 'PA', 'CU', 'DO', 'BR', 'AU', 'NZ', 'ZA'],
+        // High-Quality Beach & Relaxation Destinations
+        beach: [
+            'MV', 'MU', 'SC', 'FJ', 'BB', 'JM', 'TH', 'ID', 'MY', 'PH', 'VN', 'GR', 
+            'ES', 'IT', 'HR', 'PT', 'CY', 'MT', 'TR', 'EG', 'TN', 'MA', 'MX', 'CR', 
+            'PA', 'CU', 'DO', 'BR', 'AU', 'NZ', 'ZA', 'BS', 'CL', 'MO', 'KW', 'AE',
+            'IL', 'BZ', 'GT', 'CO', 'EC', 'IN', 'SR', 'VN'
+        ],
         
-        // Adventure/Nature countries
-        adventure: ['NP', 'NZ', 'IS', 'NO', 'CH', 'AT', 'CA', 'US', 'AR', 'CL', 'PE', 'BO', 'EC', 'CR', 'ZA', 'KE', 'TZ', 'UG', 'RW', 'BT', 'LK', 'TH', 'VN', 'ID', 'MY', 'AU', 'JP'],
+        // World-Class Adventure & Nature (Mountains, Safaris, Jungles, Geothermal)
+        adventure: [
+            'NP', 'NZ', 'IS', 'NO', 'CH', 'AT', 'CA', 'US', 'AR', 'CL', 'PE', 'BO', 
+            'EC', 'CR', 'ZA', 'KE', 'TZ', 'UG', 'RW', 'BT', 'LK', 'VN', 'ID', 'MY', 
+            'AU', 'JP', 'MG', 'MW', 'ET', 'CO', 'PY', 'MN', 'GL', 'FJ', 'MX', 'AR',
+            'LK', 'GR', 'GE', 'AZ', 'AM', 'KG'
+        ],
         
-        // Culture/History countries
-        culture: ['IT', 'GR', 'EG', 'TR', 'FR', 'ES', 'GB', 'DE', 'AT', 'CZ', 'PL', 'RU', 'CN', 'JP', 'KR', 'IN', 'TH', 'VN', 'KH', 'MM', 'LA', 'IR', 'IQ', 'JO', 'IL', 'SA', 'AE', 'OM', 'MA', 'TN', 'MX', 'PE', 'BR'],
+        // Deep Culture, Ancient History, and Iconic Architectural Hubs
+        culture: [
+            'IT', 'GR', 'EG', 'TR', 'FR', 'ES', 'GB', 'DE', 'AT', 'CZ', 'PL', 'RU', 
+            'CN', 'JP', 'KR', 'IN', 'TH', 'VN', 'KH', 'MM', 'LA', 'IR', 'JO', 'IL', 
+            'SA', 'MA', 'TN', 'MX', 'PE', 'BR', 'PT', 'IQ', 'GT', 'ID', 'AZ', 'GE',
+            'AM', 'CU', 'PK'
+        ],
         
-        // Shopping/Nightlife countries
-        shopping: ['AE', 'SG', 'HK', 'JP', 'KR', 'TH', 'MY', 'GB', 'FR', 'IT', 'ES', 'DE', 'US', 'AU', 'TR', 'MX', 'BR'],
+        // Major Shopping Districts, Finance Hubs, and Nightlife Capitals
+        shopping: [
+            'AE', 'SG', 'HK', 'JP', 'KR', 'TH', 'MY', 'GB', 'FR', 'IT', 'ES', 'DE', 
+            'US', 'AU', 'TR', 'MX', 'BR', 'CN', 'TW', 'NL', 'BE', 'PT', 'SE', 'DK',
+            'FI', 'IE', 'CH', 'RU', 'CL'
+        ],
         
-        // Food/Culinary countries
-        food: ['IT', 'FR', 'ES', 'JP', 'TH', 'VN', 'CN', 'IN', 'TR', 'MX', 'PE', 'GR', 'PT', 'KR', 'MY', 'SG', 'ID', 'MA', 'LB', 'IL', 'BR', 'AR']
+        // Internationally Recognized Gastronomic Destinations
+        food: [
+            'IT', 'FR', 'ES', 'JP', 'TH', 'VN', 'CN', 'IN', 'TR', 'MX', 'PE', 'GR', 
+            'PT', 'KR', 'MY', 'SG', 'ID', 'MA', 'LB', 'IL', 'BR', 'AR', 'CO', 'CL', 
+            'BD', 'HK', 'TW', 'BE', 'NL', 'HU'
+        ]
     };
+    // -----------------------------------------------------------
 
     let updated = 0;
-    
-    for (const [iso2, name] of result[0].values) {
+    const countries = result[0].values; // Array of [iso2, name]
+
+    for (const [iso2, name] of countries) {
+        // Normalize columns (replace '-' with '_')
         const beach = travelStyleMapping.beach.includes(iso2) ? 1 : 0;
         const adventure = travelStyleMapping.adventure.includes(iso2) ? 1 : 0;
         const culture = travelStyleMapping.culture.includes(iso2) ? 1 : 0;
         const shopping = travelStyleMapping.shopping.includes(iso2) ? 1 : 0;
         const food = travelStyleMapping.food.includes(iso2) ? 1 : 0;
         
-        // Give every country at least one attribute if they have none
+        // Logic for ensuring every country has at least one attribute.
+        // We ensure a country is marked as Culture if it has no other obvious global appeal.
         const hasAny = beach || adventure || culture || shopping || food;
-        const defaultCulture = hasAny ? culture : 1; // Default to culture if no attributes
+        const finalCulture = hasAny ? culture : 1; 
         
         db.run(
             `UPDATE countries 
@@ -61,11 +87,12 @@ async function populateTravelStyles() {
                  shopping_nightlife = ?, 
                  food_culinary = ?
              WHERE iso2 = ?`,
-            [beach, adventure, defaultCulture, shopping, food, iso2]
+            [beach, adventure, finalCulture, shopping, food, iso2]
         );
         updated++;
     }
-
+    
+    // Save and log results
     writeFileSync(dbPath, Buffer.from(db.export()));
     console.log(`✅ Updated travel styles for ${updated} countries`);
     
@@ -82,7 +109,7 @@ async function populateTravelStyles() {
     
     if (stats.length && stats[0].values.length) {
         const [beach, adventure, culture, shopping, food] = stats[0].values[0];
-        console.log('\n📊 Travel Style Distribution:');
+        console.log('\n📊 Travel Style Distribution (Revised):');
         console.log(`   Beach: ${beach} countries`);
         console.log(`   Adventure: ${adventure} countries`);
         console.log(`   Culture: ${culture} countries`);
