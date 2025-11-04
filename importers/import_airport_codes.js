@@ -41,7 +41,7 @@ async function importAirports() {
 
     for (const airport of airportCodes) {
         const countryId = getCountryId(db, airport.country_code)
-
+        
         try {
             db.run(
                 `INSERT OR REPLACE INTO airports 

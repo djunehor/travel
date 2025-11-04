@@ -186,22 +186,21 @@ app.get('/api/task/:taskId', async (req, res) => {
 app.get('/api/airports', (_, res) => {
     try {
         const result = db.exec(
-            `SELECT a.iata, a.name, a.city, c.iso2 as country_code, c.name as country_name
+            `SELECT a.iata, a.name as airport, a.region as region_name, c.iso2 as country_code
              FROM airports a
              JOIN countries c ON a.country_id = c.id
-             ORDER BY c.name, a.name`
+             ORDER BY a.id`
         );
         
         if (!result.length || !result[0].values.length) {
             return res.json([]);
         }
         
-        const airports = result[0].values.map(([iata, name, city, countryCode, countryName]) => ({
+        const airports = result[0].values.map(([iata, airport, region_name, country_code]) => ({
             iata,
-            name,
-            city,
-            country_code: countryCode,
-            country_name: countryName
+            airport,
+            region_name,
+            country_code
         }));
         
         res.json(airports);

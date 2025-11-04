@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quick Visa Access Checker</title>
+    
     <!-- Primary Meta Tags -->
     <meta name="title" content="Vacation Planner | Plan Your Perfect Getaway with Visa Requirements in Mind">
     <meta name="description"
@@ -38,220 +39,993 @@
     <meta name="keywords"
         content="vacation planner, travel visa, trip planning, visa-free destinations, travel itinerary, travel budget tool">
 
-
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Optional: Custom styles for better alignment of the flag emoji */
-        .flag-emoji {
-            font-size: 1.5rem;
-            line-height: 1;
-            margin-right: 0.5rem;
+        /* Custom animations and transitions */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .animate-slide-in {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        /* Focus styles for accessibility */
+        *:focus-visible {
+            outline: 2px solid #4F46E5;
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+
+        /* Input validation styles */
+        .input-error {
+            border-color: #EF4444;
+            background-color: #FEE2E2;
+        }
+
+        .input-success {
+            border-color: #10B981;
+            background-color: #D1FAE5;
+        }
+
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #F3F4F6;
+            border-radius: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #9CA3AF;
+            border-radius: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #6B7280;
+        }
+
+        /* Skeleton loader */
+        .skeleton {
+            background: linear-gradient(90deg, #F3F4F6 25%, #E5E7EB 50%, #F3F4F6 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Tooltip styles */
+        .tooltip {
+            position: relative;
+        }
+
+        .tooltip-text {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            z-index: 50;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1F2937;
+            color: white;
+            text-align: center;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Badge pulse animation */
+        .badge-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
     </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen p-4">
+<body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen p-4">
 
-    <div class="max-w-xl mx-auto bg-white shadow-xl rounded-lg p-6 sm:p-8 mt-10">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6">🛂 Visa Access Checker</h1>
-        <p class="text-gray-600 mb-8">Find destinations you can access based purely on your travel documents.</p>
-
-        <form id="eligibilityForm" class="grid grid-cols-1 gap-6">
-
-            <div class="grid grid-cols-2 gap-4">
-                <div class="col-span-1">
-                    <label for="nationality" class="block text-sm font-medium text-gray-700">Nationality (ISO2: e.g.,
-                        **NG**)</label>
-                    <input type="text" id="nationality" value="NG"
-                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 uppercase"
-                        placeholder="NG" required>
+    <!-- Main Container -->
+    <div class="max-w-4xl mx-auto mt-6 mb-12">
+        
+        <!-- Header Card -->
+        <div class="bg-white shadow-xl rounded-xl p-6 sm:p-8 mb-6 animate-fade-in">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 mb-3">
+                        🛂 Visa Access Checker
+                    </h1>
+                    <p class="text-gray-600 text-base sm:text-lg">
+                        Find destinations you can access based purely on your travel documents.
+                    </p>
                 </div>
-                <div class="col-span-1">
-                    <label for="residence" class="block text-sm font-medium text-gray-700">Residence (ISO2: e.g.,
-                        **DE**)</label>
-                    <input type="text" id="residence" value="DE"
-                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 uppercase"
-                        placeholder="DE" required>
-                </div>
-                <div class="col-span-2">
-                    <label for="visas" class="block text-sm font-medium text-gray-700">Held Visas (Comma-separated:
-                        e.g., **UK, US**)</label>
-                    <input type="text" id="visas" value="UK"
-                        class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                        placeholder="e.g., UK, SCHENGEN">
-                </div>
-            </div>
-
-            <div>
-                <label for="visaPreference" class="block text-sm font-medium text-gray-700">Max Visa Requirement
-                    Accepted</label>
-                <select id="visaPreference" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-                    required>
-                    <option value="visa-free" selected>Visa-Free Max</option>
-                    <option value="visa-on-arrival">Visa-on-Arrival Max</option>
-                    <option value="short-processing">E-Visa Max</option>
-                    <option value="any-processing">Any Visa</option>
-                </select>
-            </div>
-
-            <div class="pt-4">
-                <button type="submit" id="submitBtn"
-                    class="w-full py-3 px-4 bg-indigo-600 text-white font-semibold rounded-md shadow-lg hover:bg-indigo-700 transition duration-150"
-                    disabled>
-                    <span id="loadingSpinner"
-                        class="hidden animate-spin h-5 w-5 mr-3 border-b-2 border-white rounded-full"></span>
-                    <span id="buttonText">Check Access Now</span>
+                <button 
+                    id="resetBtn" 
+                    type="button"
+                    class="hidden ml-4 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition duration-150"
+                    aria-label="Reset form">
+                    Reset
                 </button>
             </div>
-        </form>
+        </div>
 
-        <div id="results" class="mt-10 border-t pt-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4" id="resultsTitle"></h2>
-            <div id="destinationList" class="space-y-4">
+        <!-- Form Card -->
+        <div class="bg-white shadow-xl rounded-xl p-6 sm:p-8 animate-fade-in">
+            <form id="eligibilityForm" class="grid grid-cols-1 gap-6" novalidate>
+
+                <!-- Nationality and Residence -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="nationality" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Nationality
+                            <span class="tooltip ml-1">
+                                <span class="text-indigo-600 cursor-help">ⓘ</span>
+                                <span class="tooltip-text">Enter 2-letter country code (e.g., NG, US, DE)</span>
+                            </span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="nationality" 
+                            value="NG"
+                            maxlength="2"
+                            class="block w-full border-2 border-gray-300 rounded-lg shadow-sm p-3 uppercase transition duration-150 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                            placeholder="e.g., NG"
+                            aria-required="true"
+                            aria-describedby="nationality-error"
+                            autocomplete="country">
+                        <p id="nationality-error" class="mt-1 text-sm text-red-600 hidden" role="alert"></p>
+                        <p id="nationality-success" class="mt-1 text-sm text-green-600 hidden"></p>
+                    </div>
+
+                    <div>
+                        <label for="residence" class="block text-sm font-semibold text-gray-700 mb-2">
+                            Country of Residence
+                            <span class="tooltip ml-1">
+                                <span class="text-indigo-600 cursor-help">ⓘ</span>
+                                <span class="tooltip-text">Where you currently live (2-letter code)</span>
+                            </span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="residence" 
+                            value="DE"
+                            maxlength="2"
+                            class="block w-full border-2 border-gray-300 rounded-lg shadow-sm p-3 uppercase transition duration-150 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                            placeholder="e.g., DE"
+                            aria-required="true"
+                            aria-describedby="residence-error"
+                            autocomplete="country">
+                        <p id="residence-error" class="mt-1 text-sm text-red-600 hidden" role="alert"></p>
+                        <p id="residence-success" class="mt-1 text-sm text-green-600 hidden"></p>
+                    </div>
+                </div>
+
+                <!-- Held Visas -->
+                <div>
+                    <label for="visas" class="block text-sm font-semibold text-gray-700 mb-2">
+                        Held Visas (Optional)
+                        <span class="tooltip ml-1">
+                            <span class="text-indigo-600 cursor-help">ⓘ</span>
+                            <span class="tooltip-text">Enter visa types separated by commas (e.g., UK, SCHENGEN)</span>
+                        </span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="visas" 
+                        value="UK"
+                        class="block w-full border-2 border-gray-300 rounded-lg shadow-sm p-3 uppercase transition duration-150 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                        placeholder="e.g., UK, SCHENGEN, US"
+                        aria-describedby="visas-hint visas-error">
+                    <p id="visas-hint" class="mt-1 text-xs text-gray-500">Separate multiple visas with commas</p>
+                    <p id="visas-error" class="mt-1 text-sm text-red-600 hidden" role="alert"></p>
+                    <div id="visas-tags" class="mt-2 flex flex-wrap gap-2"></div>
+                </div>
+
+                <!-- Visa Preference -->
+                <div>
+                    <label for="visaPreference" class="block text-sm font-semibold text-gray-700 mb-2">
+                        Maximum Visa Requirement
+                        <span class="tooltip ml-1">
+                            <span class="text-indigo-600 cursor-help">ⓘ</span>
+                            <span class="tooltip-text">Filter destinations by visa complexity</span>
+                        </span>
+                    </label>
+                    <select 
+                        id="visaPreference" 
+                        class="block w-full border-2 border-gray-300 rounded-lg shadow-sm p-3 transition duration-150 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 cursor-pointer"
+                        aria-required="true">
+                        <option value="visa-free">Visa-Free Only</option>
+                        <option value="visa-on-arrival">Up to Visa-on-Arrival</option>
+                        <option value="short-processing">Up to E-Visa</option>
+                        <option value="any-processing">Any Visa Type</option>
+                    </select>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="pt-2">
+                    <button 
+                        type="submit" 
+                        id="submitBtn"
+                        class="w-full py-3.5 px-6 bg-indigo-600 text-white font-semibold rounded-lg shadow-lg hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-300 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                        disabled
+                        aria-label="Check visa access">
+                        <svg id="loadingSpinner" class="hidden animate-spin h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span id="buttonText">Check Access Now</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden mt-6">
+            <!-- Results Header -->
+            <div class="bg-white shadow-xl rounded-xl p-6 sm:p-8 mb-4 animate-slide-in">
+                <div class="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900" id="resultsTitle">
+                            Search Results
+                        </h2>
+                        <p class="text-gray-600 text-sm mt-1" id="resultsSubtitle"></p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button 
+                            id="shareBtn" 
+                            type="button"
+                            class="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition duration-150"
+                            aria-label="Share results">
+                            📤 Share
+                        </button>
+                        <button 
+                            id="newSearchBtn" 
+                            type="button"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition duration-150"
+                            aria-label="Start new search">
+                            New Search
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div id="errorAlert"
-                class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4"
-                role="alert">
-                <strong class="font-bold">Error:</strong>
-                <span id="errorMessage" class="block sm:inline"></span>
+
+            <!-- Error Alert -->
+            <div id="errorAlert" class="hidden mb-4 animate-slide-in" role="alert" aria-live="assertive">
+                <div class="bg-red-50 border-l-4 border-red-500 rounded-lg p-4 shadow-md">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="ml-3 flex-1">
+                            <h3 class="text-sm font-semibold text-red-800">Error</h3>
+                            <p id="errorMessage" class="mt-1 text-sm text-red-700"></p>
+                        </div>
+                        <button 
+                            id="closeError" 
+                            type="button"
+                            class="ml-4 text-red-500 hover:text-red-700"
+                            aria-label="Dismiss error">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden bg-white shadow-xl rounded-xl p-12 text-center animate-slide-in">
+                <div class="max-w-md mx-auto">
+                    <svg class="mx-auto h-24 w-24 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">No Destinations Found</h3>
+                    <p class="text-gray-600 mb-4">
+                        No destinations match your current travel documents and visa preference. 
+                    </p>
+                    <p class="text-sm text-gray-500">
+                        Try relaxing your visa preference or checking a different passport combination.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Destination List -->
+            <div id="destinationList" class="space-y-4 custom-scrollbar" style="max-height: 800px; overflow-y: auto;">
+                <!-- Skeleton loaders (shown during loading) -->
+                <div id="skeletonLoaders" class="hidden space-y-4">
+                    <div class="bg-white rounded-xl p-6 shadow-md">
+                        <div class="skeleton h-8 w-3/4 rounded mb-4"></div>
+                        <div class="skeleton h-4 w-full rounded mb-2"></div>
+                        <div class="skeleton h-4 w-5/6 rounded"></div>
+                    </div>
+                    <div class="bg-white rounded-xl p-6 shadow-md">
+                        <div class="skeleton h-8 w-3/4 rounded mb-4"></div>
+                        <div class="skeleton h-4 w-full rounded mb-2"></div>
+                        <div class="skeleton h-4 w-5/6 rounded"></div>
+                    </div>
+                    <div class="bg-white rounded-xl p-6 shadow-md">
+                        <div class="skeleton h-8 w-3/4 rounded mb-4"></div>
+                        <div class="skeleton h-4 w-full rounded mb-2"></div>
+                        <div class="skeleton h-4 w-5/6 rounded"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Screen reader announcements -->
+    <div id="announcements" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <script>
-        // Base API URL 
+        // ===========================
+        // Configuration & Constants
+        // ===========================
         const API_BASE = "https://vacation-planner.shagital.com";
+        const ISO2_REGEX = /^[A-Z]{2}$/;
+        const DEBOUNCE_DELAY = 500;
 
-        const form = document.getElementById('eligibilityForm');
-        const submitBtn = document.getElementById('submitBtn');
-        const loadingSpinner = document.getElementById('loadingSpinner');
-        const buttonText = document.getElementById('buttonText');
-        const resultsTitle = document.getElementById('resultsTitle');
-        const destinationList = document.getElementById('destinationList');
-        const errorAlert = document.getElementById('errorAlert');
-        const errorMessageSpan = document.getElementById('errorMessage');
+        // Common country codes for validation
+        const COMMON_COUNTRY_CODES = [
+            'US', 'UK', 'CA', 'AU', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE', 
+            'CH', 'AT', 'SE', 'NO', 'DK', 'FI', 'IE', 'PT', 'GR', 'PL',
+            'NG', 'ZA', 'KE', 'GH', 'EG', 'MA', 'TN', 'CN', 'JP', 'KR',
+            'IN', 'SG', 'MY', 'TH', 'ID', 'PH', 'VN', 'BR', 'MX', 'AR',
+            'CL', 'CO', 'PE', 'NZ', 'AE', 'SA', 'IL', 'TR', 'RU', 'UA'
+        ];
 
-        // --- CORRECTED: Only checks validity, returns boolean ---
-        const checkRequiredFields = () => {
-            const requiredFields = ['nationality', 'residence', 'visaPreference'];
-            return requiredFields.every(id => document.getElementById(id).value.trim() !== '');
+        // ===========================
+        // DOM Element References
+        // ===========================
+        const elements = {
+            form: document.getElementById('eligibilityForm'),
+            submitBtn: document.getElementById('submitBtn'),
+            resetBtn: document.getElementById('resetBtn'),
+            loadingSpinner: document.getElementById('loadingSpinner'),
+            buttonText: document.getElementById('buttonText'),
+            
+            nationality: document.getElementById('nationality'),
+            residence: document.getElementById('residence'),
+            visas: document.getElementById('visas'),
+            visaPreference: document.getElementById('visaPreference'),
+            
+            nationalityError: document.getElementById('nationality-error'),
+            nationalitySuccess: document.getElementById('nationality-success'),
+            residenceError: document.getElementById('residence-error'),
+            residenceSuccess: document.getElementById('residence-success'),
+            visasError: document.getElementById('visas-error'),
+            visasTags: document.getElementById('visas-tags'),
+            
+            resultsSection: document.getElementById('resultsSection'),
+            resultsTitle: document.getElementById('resultsTitle'),
+            resultsSubtitle: document.getElementById('resultsSubtitle'),
+            destinationList: document.getElementById('destinationList'),
+            emptyState: document.getElementById('emptyState'),
+            skeletonLoaders: document.getElementById('skeletonLoaders'),
+            
+            errorAlert: document.getElementById('errorAlert'),
+            errorMessage: document.getElementById('errorMessage'),
+            closeError: document.getElementById('closeError'),
+            
+            shareBtn: document.getElementById('shareBtn'),
+            newSearchBtn: document.getElementById('newSearchBtn'),
+            
+            announcements: document.getElementById('announcements')
         };
 
-        // --- CORRECTED: Centralized State Management Function ---
+        // ===========================
+        // State Management
+        // ===========================
+        let debounceTimers = {};
+        let lastSearchParams = null;
+        let cachedResults = {};
+
+        // ===========================
+        // Utility Functions
+        // ===========================
+        
+        const debounce = (func, delay, key) => {
+            return (...args) => {
+                clearTimeout(debounceTimers[key]);
+                debounceTimers[key] = setTimeout(() => func(...args), delay);
+            };
+        };
+
+        const announce = (message) => {
+            elements.announcements.textContent = message;
+        };
+
+        const sanitizeInput = (input) => {
+            return input.trim().toUpperCase().replace(/[^A-Z,\s]/g, '');
+        };
+
+        const validateISO2 = (code) => {
+            return ISO2_REGEX.test(code) && COMMON_COUNTRY_CODES.includes(code);
+        };
+
+        const parseVisaList = (input) => {
+            if (!input.trim()) return [];
+            return input
+                .split(/[,;]/)
+                .map(v => v.trim().toUpperCase())
+                .filter(v => v.length > 0);
+        };
+
+        const getCacheKey = (params) => {
+            return JSON.stringify(params);
+        };
+
+        // ===========================
+        // Validation Functions
+        // ===========================
+        
+        const showFieldError = (field, errorElement, successElement, message) => {
+            field.classList.add('input-error');
+            field.classList.remove('input-success');
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+            if (successElement) successElement.classList.add('hidden');
+            field.setAttribute('aria-invalid', 'true');
+        };
+
+        const showFieldSuccess = (field, errorElement, successElement, message = '') => {
+            field.classList.remove('input-error');
+            field.classList.add('input-success');
+            errorElement.classList.add('hidden');
+            if (successElement && message) {
+                successElement.textContent = message;
+                successElement.classList.remove('hidden');
+            }
+            field.setAttribute('aria-invalid', 'false');
+        };
+
+        const clearFieldValidation = (field, errorElement, successElement) => {
+            field.classList.remove('input-error', 'input-success');
+            errorElement.classList.add('hidden');
+            if (successElement) successElement.classList.add('hidden');
+            field.removeAttribute('aria-invalid');
+        };
+
+        const validateNationality = () => {
+            const value = elements.nationality.value.trim().toUpperCase();
+            
+            if (!value) {
+                showFieldError(
+                    elements.nationality,
+                    elements.nationalityError,
+                    elements.nationalitySuccess,
+                    'Nationality is required'
+                );
+                return false;
+            }
+            
+            if (!ISO2_REGEX.test(value)) {
+                showFieldError(
+                    elements.nationality,
+                    elements.nationalityError,
+                    elements.nationalitySuccess,
+                    'Please enter a valid 2-letter country code'
+                );
+                return false;
+            }
+            
+            if (!validateISO2(value)) {
+                showFieldError(
+                    elements.nationality,
+                    elements.nationalityError,
+                    elements.nationalitySuccess,
+                    'Country code not recognized. Please check and try again.'
+                );
+                return false;
+            }
+            
+            showFieldSuccess(
+                elements.nationality,
+                elements.nationalityError,
+                elements.nationalitySuccess,
+                '✓ Valid country code'
+            );
+            return true;
+        };
+
+        const validateResidence = () => {
+            const value = elements.residence.value.trim().toUpperCase();
+            
+            if (!value) {
+                showFieldError(
+                    elements.residence,
+                    elements.residenceError,
+                    elements.residenceSuccess,
+                    'Residence is required'
+                );
+                return false;
+            }
+            
+            if (!ISO2_REGEX.test(value)) {
+                showFieldError(
+                    elements.residence,
+                    elements.residenceError,
+                    elements.residenceSuccess,
+                    'Please enter a valid 2-letter country code'
+                );
+                return false;
+            }
+            
+            if (!validateISO2(value)) {
+                showFieldError(
+                    elements.residence,
+                    elements.residenceError,
+                    elements.residenceSuccess,
+                    'Country code not recognized. Please check and try again.'
+                );
+                return false;
+            }
+            
+            showFieldSuccess(
+                elements.residence,
+                elements.residenceError,
+                elements.residenceSuccess,
+                '✓ Valid country code'
+            );
+            return true;
+        };
+
+        const validateVisas = () => {
+            const value = elements.visas.value.trim();
+            
+            if (!value) {
+                clearFieldValidation(elements.visas, elements.visasError);
+                updateVisaTags([]);
+                return true;
+            }
+            
+            const visaList = parseVisaList(value);
+            
+            if (visaList.length === 0) {
+                showFieldError(
+                    elements.visas,
+                    elements.visasError,
+                    null,
+                    'Invalid visa format. Use comma-separated values (e.g., UK, US)'
+                );
+                updateVisaTags([]);
+                return false;
+            }
+            
+            clearFieldValidation(elements.visas, elements.visasError);
+            updateVisaTags(visaList);
+            return true;
+        };
+
+        const updateVisaTags = (visaList) => {
+            elements.visasTags.innerHTML = '';
+            
+            if (visaList.length === 0) return;
+            
+            visaList.forEach(visa => {
+                const tag = document.createElement('span');
+                tag.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800';
+                tag.innerHTML = `
+                    ${visa}
+                    <button type="button" class="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-indigo-600 hover:text-indigo-800" aria-label="Remove ${visa}">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                `;
+                
+                tag.querySelector('button').addEventListener('click', () => {
+                    const currentVisas = parseVisaList(elements.visas.value);
+                    const updatedVisas = currentVisas.filter(v => v !== visa);
+                    elements.visas.value = updatedVisas.join(', ');
+                    validateVisas();
+                });
+                
+                elements.visasTags.appendChild(tag);
+            });
+        };
+
+        const validateForm = () => {
+            const isNationalityValid = validateNationality();
+            const isResidenceValid = validateResidence();
+            const isVisasValid = validateVisas();
+            
+            const isFormValid = isNationalityValid && isResidenceValid && isVisasValid;
+            
+            elements.submitBtn.disabled = !isFormValid;
+            
+            return isFormValid;
+        };
+
+        // ===========================
+        // UI State Management
+        // ===========================
+        
         const setLoadingState = (isLoading) => {
             if (isLoading) {
-                submitBtn.disabled = true;
-                loadingSpinner.classList.remove('hidden');
-                buttonText.textContent = 'Checking...';
+                elements.submitBtn.disabled = true;
+                elements.loadingSpinner.classList.remove('hidden');
+                elements.buttonText.textContent = 'Checking...';
+                elements.skeletonLoaders.classList.remove('hidden');
+                elements.destinationList.innerHTML = '';
+                announce('Searching for destinations...');
             } else {
-                // Restore non-loading state
-                loadingSpinner.classList.add('hidden');
-                buttonText.textContent = 'Check Access Now';
-
-                // Re-enable the button ONLY IF all required fields are filled.
-                const allFieldsValid = checkRequiredFields();
-                submitBtn.disabled = !allFieldsValid;
+                elements.loadingSpinner.classList.add('hidden');
+                elements.buttonText.textContent = 'Check Access Now';
+                elements.skeletonLoaders.classList.add('hidden');
+                validateForm();
             }
         };
-        // ----------------------------------------------------
 
-        // Initial setup: Attach listeners for real-time validation
-        document.querySelectorAll('input, select').forEach(el => {
-            el.addEventListener('input', () => {
-                // Update button disabled state only if not currently loading
-                if (loadingSpinner.classList.contains('hidden')) {
-                    setLoadingState(false);
+        const showResults = () => {
+            elements.resultsSection.classList.remove('hidden');
+            elements.resetBtn.classList.remove('hidden');
+            
+            // Scroll to results
+            setTimeout(() => {
+                elements.resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
+        };
+
+        const hideError = () => {
+            elements.errorAlert.classList.add('hidden');
+        };
+
+        const showError = (message) => {
+            elements.errorMessage.textContent = message;
+            elements.errorAlert.classList.remove('hidden');
+            announce(`Error: ${message}`);
+        };
+
+        const resetForm = () => {
+            elements.form.reset();
+            elements.nationality.value = 'NG';
+            elements.residence.value = 'DE';
+            elements.visas.value = 'UK';
+            
+            clearFieldValidation(elements.nationality, elements.nationalityError, elements.nationalitySuccess);
+            clearFieldValidation(elements.residence, elements.residenceError, elements.residenceSuccess);
+            clearFieldValidation(elements.visas, elements.visasError);
+            updateVisaTags([]);
+            
+            elements.resultsSection.classList.add('hidden');
+            elements.resetBtn.classList.add('hidden');
+            hideError();
+            
+            lastSearchParams = null;
+            validateForm();
+            announce('Form reset');
+        };
+
+        // ===========================
+        // Results Rendering
+        // ===========================
+        
+        const getVisaBadgeStyle = (visaStatus) => {
+            const styles = {
+                'visa-free': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                'visa-on-arrival': 'bg-green-100 text-green-800 border-green-200',
+                'short-processing': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                'any-processing': 'bg-orange-100 text-orange-800 border-orange-200'
+            };
+            return styles[visaStatus] || 'bg-gray-100 text-gray-800 border-gray-200';
+        };
+
+        const formatVisaStatus = (status) => {
+            return status.split('-').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+            ).join(' ');
+        };
+
+        const createDestinationCard = (dest, index) => {
+            const card = document.createElement('div');
+            card.className = 'bg-white border-2 border-gray-100 rounded-xl p-6 shadow-sm hover:shadow-xl hover:border-indigo-200 transition-all duration-200 animate-slide-in';
+            card.style.animationDelay = `${index * 50}ms`;
+            
+            const badgeStyle = getVisaBadgeStyle(dest.visaStatus);
+            
+            card.innerHTML = `
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center flex-1">
+                        <span class="text-4xl mr-3" role="img" aria-label="Flag">${dest.emoji || '🌍'}</span>
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-900">
+                                ${dest.name}
+                            </h3>
+                            <span class="text-sm text-gray-500 font-medium">${dest.countryCode}</span>
+                        </div>
+                    </div>
+                    <span class="px-3 py-1.5 text-xs font-bold rounded-lg border-2 ${badgeStyle} whitespace-nowrap">
+                        ${formatVisaStatus(dest.visaStatus)}
+                    </span>
+                </div>
+                
+                <div class="space-y-3">
+                    <div class="flex items-start">
+                        <svg class="w-5 h-5 text-indigo-600 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-700">Processing Time</p>
+                            <p class="text-sm text-gray-600">${dest.visaProcessingTime}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start">
+                        <svg class="w-5 h-5 text-indigo-600 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-700">Valid Duration</p>
+                            <p class="text-sm text-gray-600">${dest.visaTimeline}</p>
+                        </div>
+                    </div>
+                    
+                    ${dest.visaRequirements && dest.visaRequirements.length > 0 ? `
+                        <div class="flex items-start">
+                            <svg class="w-5 h-5 text-indigo-600 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <div class="flex-1">
+                                <p class="text-sm font-semibold text-gray-700 mb-1">Requirements</p>
+                                <div class="flex flex-wrap gap-1">
+                                    ${dest.visaRequirements.map(req => `
+                                        <span class="inline-block px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded">
+                                            ${req}
+                                        </span>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+            
+            return card;
+        };
+
+        const renderDestinations = (destinations) => {
+            elements.destinationList.innerHTML = '';
+            elements.emptyState.classList.add('hidden');
+            
+            if (destinations.length === 0) {
+                elements.emptyState.classList.remove('hidden');
+                elements.resultsTitle.textContent = 'No Results';
+                elements.resultsSubtitle.textContent = '';
+                announce('No destinations found matching your criteria');
+                return;
+            }
+            
+            elements.resultsTitle.textContent = `${destinations.length} Eligible Destination${destinations.length !== 1 ? 's' : ''}`;
+            elements.resultsSubtitle.textContent = `Based on your travel documents and preferences`;
+            
+            destinations.forEach((dest, index) => {
+                const card = createDestinationCard(dest, index);
+                elements.destinationList.appendChild(card);
+            });
+            
+            announce(`Found ${destinations.length} eligible destination${destinations.length !== 1 ? 's' : ''}`);
+        };
+
+        // ===========================
+        // API Functions
+        // ===========================
+        
+        const checkTravel = async (params) => {
+            const cacheKey = getCacheKey(params);
+            
+            // Check cache
+            if (cachedResults[cacheKey]) {
+                return cachedResults[cacheKey];
+            }
+            
+            const response = await fetch(`${API_BASE}/api/check-travel`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(params)
+            });
+
+            if (!response.ok) {
+                const result = await response.json();
+                throw new Error(result.error || `Server error: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            // Cache the results
+            cachedResults[cacheKey] = result;
+            
+            return result;
+        };
+
+        // ===========================
+        // Feature Functions
+        // ===========================
+        
+        const shareResults = async () => {
+            if (!lastSearchParams) return;
+            
+            const params = new URLSearchParams({
+                n: lastSearchParams.nationality,
+                r: lastSearchParams.residence,
+                v: lastSearchParams.visas.join(','),
+                p: lastSearchParams.visaPreference
+            });
+            
+            const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+            
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'Visa Access Results',
+                        text: `Check out my visa access results - ${elements.resultsTitle.textContent}`,
+                        url: shareUrl
+                    });
+                    announce('Results shared successfully');
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        copyToClipboard(shareUrl);
+                    }
+                }
+            } else {
+                copyToClipboard(shareUrl);
+            }
+        };
+
+        const copyToClipboard = async (text) => {
+            try {
+                await navigator.clipboard.writeText(text);
+                const originalText = elements.shareBtn.innerHTML;
+                elements.shareBtn.innerHTML = '✓ Link Copied!';
+                elements.shareBtn.classList.add('bg-green-100', 'text-green-700');
+                announce('Link copied to clipboard');
+                
+                setTimeout(() => {
+                    elements.shareBtn.innerHTML = originalText;
+                    elements.shareBtn.classList.remove('bg-green-100', 'text-green-700');
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+                announce('Failed to copy link');
+            }
+        };
+
+        const loadFromURL = () => {
+            const params = new URLSearchParams(window.location.search);
+            
+            if (params.has('n')) elements.nationality.value = params.get('n');
+            if (params.has('r')) elements.residence.value = params.get('r');
+            if (params.has('v')) elements.visas.value = params.get('v');
+            if (params.has('p')) elements.visaPreference.value = params.get('p');
+            
+            if (params.size > 0) {
+                validateForm();
+                if (!elements.submitBtn.disabled) {
+                    elements.form.dispatchEvent(new Event('submit'));
+                }
+            }
+        };
+
+        // ===========================
+        // Event Handlers
+        // ===========================
+        
+        const handleSubmit = async (e) => {
+            e.preventDefault();
+            
+            if (!validateForm()) {
+                announce('Please fix form errors before submitting');
+                return;
+            }
+            
+            hideError();
+            setLoadingState(true);
+            showResults();
+            
+            const nationality = elements.nationality.value.trim().toUpperCase();
+            const residence = elements.residence.value.trim().toUpperCase();
+            const visasList = parseVisaList(elements.visas.value);
+            const visaPreference = elements.visaPreference.value;
+            
+            const requestData = {
+                nationality,
+                residence,
+                visas: visasList,
+                visaPreference
+            };
+            
+            lastSearchParams = requestData;
+            
+            try {
+                const result = await checkTravel(requestData);
+                const destinations = result.data || [];
+                renderDestinations(destinations);
+            } catch (error) {
+                showError(error.message || 'An unexpected error occurred. Please try again.');
+                console.error('API Error:', error);
+            } finally {
+                setLoadingState(false);
+            }
+        };
+
+        // ===========================
+        // Event Listeners
+        // ===========================
+        
+        elements.form.addEventListener('submit', handleSubmit);
+        
+        elements.nationality.addEventListener('input', debounce(validateNationality, DEBOUNCE_DELAY, 'nationality'));
+        elements.residence.addEventListener('input', debounce(validateResidence, DEBOUNCE_DELAY, 'residence'));
+        elements.visas.addEventListener('input', debounce(validateVisas, DEBOUNCE_DELAY, 'visas'));
+        
+        elements.nationality.addEventListener('blur', validateNationality);
+        elements.residence.addEventListener('blur', validateResidence);
+        elements.visas.addEventListener('blur', validateVisas);
+        
+        elements.resetBtn.addEventListener('click', resetForm);
+        elements.newSearchBtn.addEventListener('click', resetForm);
+        elements.shareBtn.addEventListener('click', shareResults);
+        elements.closeError.addEventListener('click', hideError);
+        
+        // Handle Enter key on inputs
+        [elements.nationality, elements.residence, elements.visas].forEach(input => {
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!elements.submitBtn.disabled) {
+                        elements.form.dispatchEvent(new Event('submit'));
+                    }
                 }
             });
         });
-        setLoadingState(false); // Run on load to set initial disabled state
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            // 1. Prepare UI for loading state
-            destinationList.innerHTML = '';
-            errorAlert.classList.add('hidden');
-            setLoadingState(true); // Disable button and show spinner
-
-            // 2. Gather data
-            const nationality = document.getElementById('nationality').value.trim();
-            const residence = document.getElementById('residence').value.trim();
-            const visasInput = document.getElementById('visas').value.trim();
-            const visaPreference = document.getElementById('visaPreference').value;
-
-            const requestData = {
-                nationality: nationality,
-                residence: residence,
-                visas: visasInput ? visasInput.split(',').map(s => s.trim().toUpperCase()).filter(s => s) : [],
-                visaPreference: visaPreference,
-            };
-
-            try {
-                // 3. Send API Request
-                const response = await fetch(`${API_BASE}/api/check-travel`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(requestData)
-                });
-
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.error || `HTTP error! status: ${response.status}`);
-                }
-
-                // 4. Handle Success and Display Results
-                const destinations = result.data || [];
-
-                resultsTitle.textContent = `Found ${destinations.length} Eligible Destinations`;
-
-                if (destinations.length === 0) {
-                    destinationList.innerHTML = '<p class="text-gray-500">No destinations match your current travel documents and visa preference. Try relaxing your preference or checking another passport/residence combination.</p>';
-                } else {
-                    // ... (Destination list rendering logic) ...
-                    destinations.forEach(dest => {
-                        const isSimpleAccess = dest.visaStatus === 'visa-free' || dest.visaStatus === 'visa-on-arrival';
-
-                        const item = document.createElement('div');
-                        item.className = 'border p-4 rounded-lg bg-white shadow-sm hover:shadow-md transition';
-                        item.innerHTML = `
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="text-xl font-bold text-gray-800 flex items-center">
-                                <span class="flag-emoji">${dest.emoji || '🌍'}</span>
-                                ${dest.name} 
-                                <span class="ml-2 text-sm font-medium text-indigo-500">(${dest.countryCode})</span>
-                            </h3>
-                            <span class="px-3 py-1 text-sm font-semibold rounded-full ${isSimpleAccess ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                                ${dest.visaStatus.toUpperCase().replace('-', ' ')}
-                            </span>
-                        </div>
-                        <p class="text-sm text-gray-600 mb-1">
-                            <strong>Processing:</strong> ${dest.visaProcessingTime}
-                        </p>
-                        <p class="text-sm text-gray-600">
-                            <strong>Timeline:</strong> ${dest.visaTimeline}
-                        </p>
-                        <p class="text-xs text-gray-400 mt-2">
-                            Requirements: ${dest.visaRequirements.join(', ')}
-                        </p>
-                    `;
-                        destinationList.appendChild(item);
-                    });
-                }
-
-            } catch (error) {
-                // 5. Handle Error
-                errorMessageSpan.textContent = error.message;
-                errorAlert.classList.remove('hidden');
-                resultsTitle.textContent = 'Error during search';
-                console.error('Fetch error:', error);
-            } finally {
-                // 6. Restore UI state
-                setLoadingState(false); // Re-enable button if fields are valid
-            }
-        });
+        // ===========================
+        // Initialization
+        // ===========================
+        
+        // Load from URL parameters if present
+        loadFromURL();
+        
+        // Initial validation
+        validateForm();
+        
+        // Announce app ready for screen readers
+        announce('Visa Access Checker loaded and ready');
     </script>
 </body>
 
