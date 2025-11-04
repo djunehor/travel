@@ -237,6 +237,7 @@ export async function processTask(db, taskId, requestData) {
                 console.log(new Date().toLocaleString(), `[${taskId}] Results array now has ${results.length} destinations`);
 
                 try {
+                    const redisClient = getRedisClient();
                     await redisClient.setex(`TASK:${taskId}`, 3600, JSON.stringify(results));
                     console.log(new Date().toLocaleString(), `[${taskId}] Cached partial results to Redis`);
                 } catch (err) {
