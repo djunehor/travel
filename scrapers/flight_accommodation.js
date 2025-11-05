@@ -50,7 +50,7 @@ export async function scrapeFlightAccommodation(origin, destination, checkInStr,
             "bfSubSource": "S07HPV10S07RR01",
             "businessProfileId": "HOLIDAYSBOOKINGDE_PROMO",
             "adults": adults.toString(),
-            "price": `0,${budgetRange.max}`,
+            "price": `0,${budgetRange.max - (0.05 * budgetRange.max)}`,
             //   "searchId": "t1762193180350fe59",
             //   "vcSearchId": "590905357"
         }
