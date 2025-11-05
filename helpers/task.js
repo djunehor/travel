@@ -174,7 +174,7 @@ export async function processTask(db, taskId, requestData) {
                     return;
                 }
 
-                console.log(new Date().toLocaleString(), `[${taskId}] sourcing activities for ${destination.name}`);
+                console.log(new Date().toLocaleString(), `[${taskId}] sourcing activities for ${destination.name} with budget ${budgetRanges[requestData.budget].max - Number(flightPlusAccommodation.price)}`);
                 logTaskProgress(db, taskId, `Sourcing activities data for ${destination.name}`);
                 let activitiesData = await scrapeActivities(
                     destination.name,

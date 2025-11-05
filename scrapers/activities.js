@@ -61,7 +61,7 @@ export async function scrapeActivities(destination, checkInStr, checkOutStr, dur
         page = l.page;
 
         console.log(new Date().toLocaleString(), `Navigating to GetYourGuide: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 30 * 1000 });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60 * 1000 });
 
         await closeCookieBanner(page);
 
@@ -89,27 +89,28 @@ export async function scrapeActivities(destination, checkInStr, checkOutStr, dur
             const activities = [];
             const activityElements = document.querySelectorAll('section div[class="activity-card-block activity-card-block--grid"]');
 
-            activityElements.forEach((el, index) => {
-                if (index < 5) {
-                    const titleElement = el.querySelector('h3[data-test-id="activity-card-title"]');
-                    const priceElement = el.querySelector('span[class*="activity-price__text-price"]');
-                    const priceUnitElement = el.querySelector('span[class*="activity-price__text-suffix"]');
+            activityElements.forEach((el, _index) => {
 
-                    if (titleElement) {
-                        activities.push({
-                            url: el.querySelector('a') ? el.querySelector('a').href : null,
-                            name: titleElement?.textContent.trim(),
-                            price: priceElement?.textContent.trim(),
-                            priceUnit: priceUnitElement?.textContent.trim()
-                        });
-                    }
+                const titleElement = el.querySelector('h3[data-test-id="activity-card-title"]');
+                const priceElement = el.querySelector('span[class*="activity-price__text-price"]');
+                const priceUnitElement = el.querySelector('span[class*="activity-price__text-suffix"]');
+
+                if (titleElement) {
+                    activities.push({
+                        url: el.querySelector('a') ? el.querySelector('a').href : null,
+                        name: titleElement?.textContent.trim(),
+                        price: priceElement?.textContent.trim(),
+                        priceUnit: priceUnitElement?.textContent.trim()
+                    });
                 }
+
             });
 
             return activities;
         });
+        console.log(new Date().toLocaleString(), `✅ Extracted ${activitiesData.length} activities`, activitiesData.slice(0, 3));
 
-        const activities = activitiesData.slice(0, 4);
+        const activities = activitiesData;
         const totalPrice = activities.reduce((sum, activity) => {
             const price = parseInt(activity.price?.replace(/[^0-9]/g, '') || '0');
             return sum + (isNaN(price) ? 0 : price);

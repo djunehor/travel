@@ -2,7 +2,7 @@
 let currentStep = 1;
 let totalSteps = 8;
 let travelers = [];
-const baseUrl = 'https://vacation-planner.shagital.com';
+const baseUrl = 'https://9a702f23b215.ngrok-free.app';
 
 // Cancellation / polling control
 let currentTaskId = null;
@@ -836,7 +836,7 @@ function displayResults(response, { partial = false } = {}) {
 
                             <div>
                                 <h4 class="font-semibold text-gray-900 mb-2">Accommodation</h4>
-                                <p class="text-sm text-gray-600 mb-1">${dest.accommodationSuggestion}</p>
+                                <p class="text-sm text-gray-600 mb-1">${dest.accommodationSuggestion || 'N/A'}</p>
                                 <p class="text-sm text-gray-700">Estimated: <span class="font-semibold">$${parseFloat(dest.estimatedCost.accommodation).toFixed(2)}</span></p>
                             </div>
 
