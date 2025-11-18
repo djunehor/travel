@@ -15,19 +15,33 @@ async function importCountries() {
     
     db.run(`DROP TABLE IF EXISTS countries`);
     db.run(`
-        CREATE TABLE IF NOT EXISTS countries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            iso2 TEXT NOT NULL UNIQUE,
-            beach_relaxation BOOLEAN DEFAULT 0,
-            adventure_nature BOOLEAN DEFAULT 0,
-            culture_history BOOLEAN DEFAULT 0,
-            shopping_nightlife BOOLEAN DEFAULT 0,
-            food_culinary BOOLEAN DEFAULT 0
-        )
+        CREATE TABLE countries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  iso2 TEXT NOT NULL UNIQUE,
+
+  -- Travel interest categories
+  beach_relaxation BOOLEAN DEFAULT 0,
+  adventure_nature BOOLEAN DEFAULT 0,
+  culture_history BOOLEAN DEFAULT 0,
+  shopping_nightlife BOOLEAN DEFAULT 0,
+  food_culinary BOOLEAN DEFAULT 0,
+
+  -- Quantitative global indicators
+  hdi REAL,                -- Human Development Index (0-1)
+  gpi REAL,                -- Global Peace Index
+  gti REAL,                -- Global Terrorism Index
+  ttdi REAL,               -- Travel & Tourism Development Index
+  travel_advisory INTEGER, -- US State Department rating (1-4)
+  avg_daily_cost REAL,     -- Average daily cost in USD
+  visa_free_rank INTEGER,  -- Henley Passport Index / travel freedom score
+  climate_score REAL,      -- Optional normalized climate comfort index (0-1)
+  hospital_access REAL,    -- Optional metric for medical infrastructure (0-1)
+  pollution_score REAL     -- Optional AQI or pollution index (0-1)
+);
+
     `);
     
-    // Sample data - you'll need to populate this fully
     const countries = JSON.parse(readFileSync('./json/countries.json'))
     
     for (const country of countries) {
