@@ -224,7 +224,8 @@ export async function processTask(db, taskId, requestData) {
                         flights: 0.5 * flightPlusAccommodation.price,
                         accommodation: 0.5 * flightPlusAccommodation.price,
                         activities: activitiesData.totalPrice,
-                        total: totalCost
+                        total: totalCost,
+                        currency: flightPlusAccommodation.priceCurrency
                     },
                     flightDetails: {
                         origin: departureAirportAndCountry,

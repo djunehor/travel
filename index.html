@@ -1,232 +1,519 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Vacation Planner | Plan Your Perfect Getaway with Visa Requirements in Mind</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travelbeta - Find Your Perfect Destination</title>
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="Find your perfect travel destination with Travelbeta. Discover visa-free and budget-friendly trips tailored to your nationality, residence, and travel style. Plan your next adventure with ease!">
+    <meta name="keywords" content="travel, visa-free, vacation, destination, flights, hotels, travel planner, travelbeta, budget travel, trip planning, adventure, holiday, tourism">
+    <meta name="robots" content="index, follow">
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Travelstart x Arlo - Find Your Perfect Destination">
+    <meta property="og:description" content="Find your perfect travel destination with Travelstart x Arlo. Discover visa-free and budget-friendly trips tailored to your nationality, residence, and travel style. Plan your next adventure with ease!">
+    <meta property="og:site_name" content="Travelstart x Arlo">
+    <meta property="og:image" content="/og-image.png">
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Travelstart x Arlo - Find Your Perfect Destination">
+    <meta name="twitter:description" content="Find your perfect travel destination with Travelstart x Arlo. Discover visa-free and budget-friendly trips tailored to your nationality, residence, and travel style. Plan your next adventure with ease!">
 
-  <!-- Primary Meta Tags -->
-  <meta name="title" content="Vacation Planner | Plan Your Perfect Getaway with Visa Requirements in Mind">
-  <meta name="description"
-    content="Easily plan your dream vacation with our interactive travel planner. Get personalized destination ideas based on budget, visa requirements, and travel style.">
+    <meta name="twitter:image" content="/og-image.png">
 
-  <!-- Canonical -->
-  <link rel="canonical" href="https://vacation-planner-demo.netlify.app/" />
-
-  <!-- Open Graph / Facebook -->
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://vacation-planner-demo.netlify.app/" />
-  <meta property="og:title" content="Vacation Planner | Plan Your Perfect Getaway" />
-  <meta property="og:description"
-    content="Discover destinations that match your budget, visa preference, and travel style. Plan smarter, travel happier." />
-  <meta property="og:image" content="https://vacation-planner-demo.netlify.app/og-image.png" />
-
-  <!-- Twitter -->
-  <meta property="twitter:card" content="summary_large_image" />
-  <meta property="twitter:url" content="https://vacation-planner-demo.netlify.app/" />
-  <meta property="twitter:title" content="Vacation Planner | Plan Your Perfect Getaway" />
-  <meta property="twitter:description"
-    content="Smart vacation planning tool that considers your visa type, travel budget, and preferences." />
-  <meta property="twitter:image" content="https://vacation-planner-demo.netlify.app/og-image.png" />
-
-  <!-- Favicon -->
-  <link rel="icon" href="/favicon.ico" type="image/x-icon" />
-
-  <!-- Additional SEO Enhancements -->
-  <meta name="robots" content="index, follow">
-  <meta name="author" content="Vacation Planner Team">
-  <meta name="keywords"
-    content="vacation planner, travel visa, trip planning, visa-free destinations, travel itinerary, travel budget tool">
-
-  <!-- Schema.org JSON-LD for Rich Results -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "Vacation Planner",
-    "url": "https://vacation-planner-demo.netlify.app/",
-    "description": "Interactive travel planning app that helps users find destinations based on visa requirements, budget, and style.",
-    "applicationCategory": "Travel",
-    "creator": {
-      "@type": "Organization",
-      "name": "Vacation Planner Team"
-    }
-  }
-  </script>
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <style>
-    li a[target="_blank"] {
-      color: #2563eb;
-      text-decoration: underline;
-    }
-
-    li a[target="_blank"]:hover {
-      color: #1d4ed8;
-    }
-  </style>
+    <!-- End SEO Meta Tags -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        .travelbeta-gradient {
+            background: #000033;
+        }
+        .travelbeta-footer {
+            background: #000033;
+        }
+        .travelbeta-header-bar {
+            background: #4A4A9B;
+        }
+        .travelbeta-cta {
+            background: #FFC107;
+            color: #333333;
+        }
+        .travelbeta-cta:hover {
+            background: #FFB300;
+        }
+        .travelbeta-tab-active {
+            background: #FFC107;
+            color: #333333;
+        }
+        .travelbeta-tab-inactive {
+            background: #D4D4D4;
+            color: #4A4A9B;
+        }
+        .selected-style {
+            background: #0052cc !important;
+            color: #fff !important;
+            font-weight: bold;
+            border: 2px solid #0052cc;
+        }
+    </style>
 </head>
+<body class="min-h-screen bg-gray-50">
 
-<body class="bg-gray-50 min-h-screen">
-  <div class="container mx-auto px-4 py-8 max-w-3xl">
-    <header class="text-center mb-8">
-      <h1 class="text-3xl font-bold text-gray-900 mb-2">Vacation Planner</h1>
-      <p class="text-gray-600">Plan your perfect getaway with visa requirements in mind</p>
-    </header> <!-- Progress Bar -->
-    <div id="progressBar" class="mb-8">
-      <div class="flex justify-between mb-2"> <span class="text-sm font-medium text-gray-700">Step <span
-            id="currentStep">1</span> of <span id="totalSteps">8</span></span> <span
-          class="text-sm font-medium text-gray-700"><span id="progressPercent">0</span>%</span> </div>
-      <div class="w-full bg-gray-200 rounded-full h-2">
-        <div id="progressFill" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-      </div>
-    </div> <!-- Form Container -->
-    <div id="formContainer" class="bg-white rounded-lg shadow-md p-8">
-      <form id="vacationForm"> <!-- Step 1: Number of Travelers -->
-        <div class="form-step active" data-step="1">
-          <h2 class="text-2xl font-semibold text-gray-900 mb-6">How many people are traveling?</h2>
-          <div class="space-y-4">
-            <div> <label class="block text-sm font-medium text-gray-700 mb-2">Adults (18+)</label> <input type="number"
-                id="numAdults" name="numAdults" min="0" max="20" value="1"
-                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+    
+    <!-- Travelbeta Header -->
+    <header class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                    <span class="text-white font-bold text-xl">T</span>
+                </div>
+                <span class="text-2xl font-bold text-blue-700">Travelbeta</span>
             </div>
-            <div> <label class="block text-sm font-medium text-gray-700 mb-2">Children (2-17)</label> <input
-                type="number" id="numChildren" name="numChildren" min="0" max="20" value="0"
-                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl font-bold text-gray-700">Arlo</span>
+                <div class="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
+                    <span class="text-white font-bold text-xl">A</span>
+                </div>
             </div>
-            <div> <label class="block text-sm font-medium text-gray-700 mb-2">Infants (under 2)</label> <input
-                type="number" id="numInfants" name="numInfants" min="0" max="20" value="0"
-                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            </div>
-          </div>
-        </div> <!-- Step 2: Traveler Details (Dynamic) -->
-        <div class="form-step" data-step="2">
-          <div id="travelerDetailsContainer"></div>
-        </div> <!-- Step 3: Budget -->
-        <div class="form-step" data-step="3">
-          <h2 class="text-2xl font-semibold text-gray-900 mb-6">What's your budget?</h2>
-          <p class="text-sm text-gray-600 mb-4">Total budget for the entire trip (USD)</p> <select id="budget"
-            name="budget"
-            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <option value="under-500">Under $500</option>
-            <option value="500-1000">$500 - $1,000</option>
-            <option value="1000-2000">$1,000 - $2,000</option>
-            <option value="2000-5000">$2,000 - $5,000</option>
-            <option value="over-5000">Over $5,000</option>
-          </select>
-        </div> <!-- Step 4: Travel Timeframe -->
-        <div class="form-step" data-step="4">
-          <h2 class="text-2xl font-semibold text-gray-900 mb-6">When do you want to travel?</h2> <select id="timeframe"
-            name="timeframe"
-            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <option value="1-month">Within 1 month</option>
-            <option value="1-3-months">1-3 months from now</option>
-            <option value="3-6-months">3-6 months from now</option>
-            <option value="6-plus-months">6+ months from now</option>
-          </select>
-        </div> <!-- Step 5: Trip Duration -->
-        <div class="form-step" data-step="5">
-          <h2 class="text-2xl font-semibold text-gray-900 mb-6">How long do you want to stay?</h2> <select id="duration"
-            name="duration"
-            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-            <option value="3-5-days">3-5 days</option>
-            <option value="5-7-days">5-7 days</option>
-            <option value="1-2-weeks">1-2 weeks</option>
-            <option value="2-plus-weeks">2+ weeks</option>
-          </select>
-        </div> <!-- Step 6: Departure Country -->
-        <div class="form-step" data-step="6">
-          <h2 class="text-2xl font-semibold text-gray-900 mb-6">Where are you departing from (airport)?</h2> <select
-            id="departureCountry" name="departureCountry"
-            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent hidden">
-            <!-- Country options will be populated by JavaScript --> </select>
-          <!-- Container for the custom dropdown -->
-          <div id="departureCountryWrapper" class="relative"></div>
-        </div> <!-- Step 7: Visa Preference -->
-        <div class="form-step" data-step="7">
-          <h2 class="text-2xl font-semibold text-gray-900 mb-6">What's your visa preference?</h2>
-          <div class="space-y-3"> <label
-              class="flex items-start p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"> <input
-                type="radio" name="visaPreference" value="visa-free" class="mt-1 mr-3">
-              <div>
-                <div class="font-medium text-gray-900">Visa-free destinations only</div>
-                <div class="text-sm text-gray-600">No visa application required</div>
-              </div>
-            </label> <label
-              class="flex items-start p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"> <input
-                type="radio" name="visaPreference" value="visa-on-arrival" class="mt-1 mr-3">
-              <div>
-                <div class="font-medium text-gray-900">Visa-on-arrival acceptable</div>
-                <div class="text-sm text-gray-600">Get visa at the airport</div>
-              </div>
-            </label> <label
-              class="flex items-start p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"> <input
-                type="radio" name="visaPreference" value="short-processing" class="mt-1 mr-3" checked>
-              <div>
-                <div class="font-medium text-gray-900">Willing to apply for visa (2-4 weeks)</div>
-                <div class="text-sm text-gray-600">Standard processing time</div>
-              </div>
-            </label> <label
-              class="flex items-start p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"> <input
-                type="radio" name="visaPreference" value="any-processing" class="mt-1 mr-3">
-              <div>
-                <div class="font-medium text-gray-900">Any processing time acceptable</div>
-                <div class="text-sm text-gray-600">No restrictions</div>
-              </div>
-            </label> </div>
-        </div> <!-- Step 8: Travel Style -->
-        <div class="form-step" data-step="8">
-          <h2 class="text-2xl font-semibold text-gray-900 mb-6">What's your travel style?</h2>
-          <p class="text-sm text-gray-600 mb-4">Select all that apply</p>
-          <div class="space-y-3"> <label
-              class="flex items-center p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"> <input
-                type="checkbox" name="travelStyle" value="beach-relaxation" class="mr-3 h-5 w-5 text-blue-600"> <span
-                class="text-gray-900">Beach & Relaxation</span> </label> <label
-              class="flex items-center p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"> <input
-                type="checkbox" name="travelStyle" value="adventure-nature" class="mr-3 h-5 w-5 text-blue-600"> <span
-                class="text-gray-900">Adventure & Nature</span> </label> <label
-              class="flex items-center p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"> <input
-                type="checkbox" name="travelStyle" value="culture-history" class="mr-3 h-5 w-5 text-blue-600"> <span
-                class="text-gray-900">Culture & History</span> </label> <label
-              class="flex items-center p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"> <input
-                type="checkbox" name="travelStyle" value="shopping-nightlife" class="mr-3 h-5 w-5 text-blue-600"> <span
-                class="text-gray-900">Shopping & Nightlife</span> </label> <label
-              class="flex items-center p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50"> <input
-                type="checkbox" name="travelStyle" value="food-culinary" class="mr-3 h-5 w-5 text-blue-600"> <span
-                class="text-gray-900">Food & Culinary Experiences</span> </label> </div>
-        </div> <!-- Navigation Buttons -->
-        <div class="flex justify-between mt-8"> <button type="button" id="prevBtn"
-            class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors hidden"> Back
-          </button> <button type="button" id="nextBtn"
-            class="ml-auto px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"> Next
-          </button> <button type="submit" id="submitBtn"
-            class="ml-auto px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors hidden">
-            Get Itinerary </button> </div>
-      </form>
-    </div> <!-- Results Container -->
-    <div id="resultsContainer" class="bg-white rounded-lg shadow-md p-8 hidden">
-      <div class="mb-6"> <button id="newSearchBtn"
-          class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"> ← New Search
-        </button> </div>
-      <div id="resultsContent"></div>
-    </div> <!-- Loading Spinner -->
-    <div id="loadingSpinner" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div class="bg-white rounded-lg p-8 flex flex-col items-center">
-        <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
-        <p class="text-gray-700 font-medium">Finding your perfect vacation...</p>
-        <!-- Cancel button to allow users to cancel the server task / polling -->
-        <div class="mt-4 w-full text-center">
-          <button id="cancelLoadingBtn" type="button"
-            class="hidden inline-block px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors">
-            Cancel
-          </button>
         </div>
-      </div>
+    </header>
+
+    <!-- Travelbeta Hero/Search Section -->
+    <div class="travelbeta-gradient py-12">
+        <div class="max-w-6xl mx-auto px-4">
+            <h1 class="text-4xl font-bold text-white mb-2">Find Your Perfect Destination</h1>
+            <p class="text-white opacity-80 mb-8">Get the best flight and hotel deals across the world</p>
+            <div class="bg-white rounded-2xl shadow-lg p-8">
+                <form id="searchForm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
+                            <input type="text" id="nationality" value="NG" placeholder="e.g., NG" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Residence Country</label>
+                            <input type="text" id="residence" value="DE" placeholder="e.g., DE" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Existing Visas (comma-separated)</label>
+                            <input type="text" id="existingVisas" placeholder="e.g., UK, US" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Departure Airport</label>
+                            <input type="text" id="departureCode" value="FRA" placeholder="e.g., FRA" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Budget Range</label>
+                            <select id="budget" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="300-500">$300 - $500</option>
+                                <option value="500-1000" selected>$500 - $1,000</option>
+                                <option value="1000-2000">$1,000 - $2,000</option>
+                                <option value="2000-5000">$2,000 - $5,000</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Trip Duration</label>
+                            <select id="duration" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="1-3-days">1-3 days</option>
+                                <option value="3-5-days" selected>3-5 days</option>
+                                <option value="5-7-days">5-7 days</option>
+                                <option value="7-14-days">7-14 days</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Timeframe</label>
+                            <select id="timeframe" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="1-month" selected>Within 1 month</option>
+                                <option value="3-months">Within 3 months</option>
+                                <option value="6-months">Within 6 months</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Visa Preference</label>
+                            <select id="visaPreference" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="visa-free" selected>Visa-free only</option>
+                                <option value="visa-on-arrival">Include visa on arrival</option>
+                                <option value="any">Any visa type</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Travel Styles</label>
+                        <div class="flex flex-wrap gap-2" id="travelStyles">
+                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="shopping-nightlife">Shopping & Nightlife</button>
+                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="food-culinary">Food & Culinary</button>
+                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="adventure-outdoor">Adventure & Outdoor</button>
+                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="culture-history">Culture & History</button>
+                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="beach-relaxation">Beach & Relaxation</button>
+                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="nature-wildlife">Nature & Wildlife</button>
+                        </div>
+                    </div>
+                    <button type="submit" id="searchBtn" class="w-full travelbeta-cta hover:travelbeta-cta font-bold py-3 px-6 rounded-lg transition-all flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <span>Search Destinations</span>
+                    </button>
+                </form>
+                <!-- Loading State -->
+                <div id="loadingState" class="hidden mt-6 text-center">
+                    <div class="inline-flex items-center gap-3 bg-blue-50 px-6 py-4 rounded-lg">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span class="text-blue-600 font-medium" id="loadingText">Searching for destinations...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
+
+    <!-- Results Section -->
+    <div id="resultsSection" class="hidden max-w-7xl mx-auto px-4 py-12">
+        <h2 class="text-3xl font-bold" style="color: #000033" mb-8">Trending Flight Deals</h2>
+        <div id="resultsContainer" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden max-w-7xl mx-auto px-4 py-12">
+        <div class="bg-white rounded-lg shadow-lg p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            <h3 class="text-2xl font-bold" style="color: #000033" mb-2">No deals found</h3>
+            <p class="text-gray-600">Try adjusting your search criteria or dates</p>
+        </div>
+    </div>
+
+    <script>
+        let selectedStyles = [];
+        let pollingInterval = null;
+
+        // Travel style toggle
+        document.querySelectorAll('.style-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const style = this.getAttribute('data-style');
+                if (selectedStyles.includes(style)) {
+                    selectedStyles = selectedStyles.filter(s => s !== style);
+                    this.classList.remove('selected-style');
+                } else {
+                    selectedStyles.push(style);
+                    this.classList.add('selected-style');
+                }
+            });
+        });
+
+        // Form submission
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const visasInput = document.getElementById('existingVisas').value;
+            const visas = visasInput ? visasInput.split(',').map(v => v.trim().toUpperCase()) : [];
+            
+            const payload = {
+                travelers: [{
+                    name: "Traveler 1",
+                    type: "adult",
+                    nationality: document.getElementById('nationality').value.toUpperCase(),
+                    residence: document.getElementById('residence').value.toUpperCase(),
+                    visas: visas
+                }],
+                budget: document.getElementById('budget').value,
+                timeframe: document.getElementById('timeframe').value,
+                duration: document.getElementById('duration').value,
+                departureCountry: document.getElementById('departureCode').value.toUpperCase(),
+                visaPreference: document.getElementById('visaPreference').value,
+                travelStyles: selectedStyles
+            };
+
+            // Show loading state
+            document.getElementById('searchBtn').disabled = true;
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+
+            try {
+                // Submit search request
+                const response = await fetch('https://vacation-planner.shagital.com/api/plan-vacation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                const taskId = data.taskId;
+
+                // Start polling for results
+                pollTaskStatus(taskId);
+            } catch (error) {
+                console.error('Error submitting search:', error);
+                document.getElementById('loadingText').textContent = 'Error occurred. Please try again.';
+                document.getElementById('searchBtn').disabled = false;
+            }
+        });
+
+        // Travel style toggle
+        document.querySelectorAll('.style-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const style = this.getAttribute('data-style');
+                if (selectedStyles.includes(style)) {
+                    selectedStyles = selectedStyles.filter(s => s !== style);
+                    this.classList.remove('bg-blue-500', 'text-white');
+                    this.classList.add('bg-gray-200', 'text-gray-700');
+                } else {
+                    selectedStyles.push(style);
+                    this.classList.remove('bg-gray-200', 'text-gray-700');
+                    this.classList.add('bg-blue-500', 'text-white');
+                }
+            });
+        });
+
+        // Form submission
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const visasInput = document.getElementById('existingVisas').value;
+            const visas = visasInput ? visasInput.split(',').map(v => v.trim().toUpperCase()) : [];
+            
+            const payload = {
+                travelers: [{
+                    name: "Traveler 1",
+                    type: "adult",
+                    nationality: document.getElementById('nationality').value.toUpperCase(),
+                    residence: document.getElementById('residence').value.toUpperCase(),
+                    visas: visas
+                }],
+                budget: document.getElementById('budget').value,
+                timeframe: document.getElementById('timeframe').value,
+                duration: document.getElementById('duration').value,
+                departureCountry: document.getElementById('departureCode').value.toUpperCase(),
+                visaPreference: document.getElementById('visaPreference').value,
+                travelStyles: selectedStyles
+            };
+
+            // Show loading state
+            document.getElementById('searchBtn').disabled = true;
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+
+            try {
+                // Submit search request
+                const response = await fetch('https://vacation-planner.shagital.com/api/plan-vacation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                const taskId = data.taskId;
+
+                // Start polling for results
+                pollTaskStatus(taskId);
+            } catch (error) {
+                console.error('Error submitting search:', error);
+                document.getElementById('loadingText').textContent = 'Error occurred. Please try again.';
+                document.getElementById('searchBtn').disabled = false;
+            }
+        });
+
+        function pollTaskStatus(taskId) {
+            let pollCount = 0;
+            let displayedInitialResults = false;
+            pollingInterval = setInterval(async () => {
+                pollCount++;
+                try {
+                    const response = await fetch(`https://vacation-planner.shagital.com/api/task/${taskId}`);
+                    const data = await response.json();
+
+                    if (data.data && data.data.destinations) {
+                        const count = data.data.destinations.length;
+                        document.getElementById('loadingText').textContent = 
+                            `Found ${count} destination${count !== 1 ? 's' : ''}... ${data.status === 'completed' ? 'Complete!' : 'Finding more...'}`;
+
+                        // Show results as soon as at least 1 destination is available
+                        if (count > 0 && !displayedInitialResults) {
+                            displayResults(data.data);
+                            displayedInitialResults = true;
+                            document.getElementById('loadingState').classList.add('hidden');
+                        }
+                    }
+
+                    if (data.status === 'completed') {
+                        clearInterval(pollingInterval);
+                        // Always update results in case more arrived
+                        displayResults(data.data);
+                        document.getElementById('loadingState').classList.add('hidden');
+                        document.getElementById('searchBtn').disabled = false;
+                    }
+                } catch (error) {
+                    console.error('Error polling task status:', error);
+                    if (pollCount > 60) { // Stop after 5 minutes
+                        clearInterval(pollingInterval);
+                        document.getElementById('loadingText').textContent = 'Search timed out. Please try again.';
+                        document.getElementById('searchBtn').disabled = false;
+                    }
+                }
+            }, 5000); // Poll every 5 seconds
+        }
+
+        function displayResults(data) {
+            const resultsContainer = document.getElementById('resultsContainer');
+            const resultsSection = document.getElementById('resultsSection');
+            const emptyState = document.getElementById('emptyState');
+
+            if (!data.destinations || data.destinations.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            resultsContainer.innerHTML = '';
+            resultsSection.classList.remove('hidden');
+
+            data.destinations.forEach(dest => {
+                const card = createDestinationCard(dest);
+                resultsContainer.innerHTML += card;
+            });
+        }
+
+        function createDestinationCard(dest) {
+            const flightUrl = buildFlightUrl(dest);
+            const hotelUrl = buildHotelUrl(dest);
+            const departDate = new Date(dest.flightDetails.departureDate);
+            const returnDate = new Date(dest.flightDetails.returnDate);
+            const dateRange = `${departDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${returnDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+            return `
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
+                    <div class="p-6 flex flex-col gap-2">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-2xl font-bold text-blue-700">${dest.name}</h3>
+                            <span class="inline-block bg-green-100 text-green-900 text-xs font-semibold px-3 py-1 rounded-full">${dest.visaStatus.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                        </div>
+                        <div class="text-gray-500 text-sm">${dateRange}</div>
+                        <div class="flex gap-6 mt-2">
+                            <div>
+                                <div class="font-semibold text-gray-800">From</div>
+                                <div class="text-gray-500">${dest.flightDetails.origin.city} (${dest.flightDetails.origin.iata})</div>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-gray-800">To</div>
+                                <div class="text-gray-500">${dest.flightDetails.destination.city} (${dest.flightDetails.destination.iata})</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 border-b">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Flights</span>
+                                <span class="font-semibold text-gray-800">${dest.estimatedCost.priceCurrency || ''}${dest.estimatedCost.flights}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Accommodation</span>
+                                <span class="font-semibold text-gray-800">${dest.estimatedCost.priceCurrency || ''}${dest.estimatedCost.accommodation}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Activities</span>
+                                <span class="font-semibold text-gray-800">${dest.estimatedCost.priceCurrency || ''}${dest.estimatedCost.activities}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-800 font-bold">Total</span>
+                                <span class="font-bold text-green-600">${dest.estimatedCost.priceCurrency || ''}${dest.estimatedCost.total}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 border-b bg-gray-50">
+                        <div class="font-semibold text-gray-800 mb-1">Visa Info</div>
+                        <div class="text-gray-600 mb-1">${dest.visaProcessingTime}</div>
+                        <ul class="list-disc ml-5 text-gray-600">
+                            ${dest.visaRequirements.map(r => `<li>${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                   
+                    <div class="px-6 py-4 border-b">
+                        <div class="font-semibold text-gray-800 mb-1">Top Activities</div>
+                        <ul class="list-disc ml-5">
+                            ${dest.topActivities && dest.topActivities.length > 0 ? dest.topActivities.slice(0,5).map(a => `<li><a href="${a.url}" target="_blank" class="text-blue-600 hover:underline">${a.name}</a> (${a.price})</li>`).join('') : '<li>No activities found.</li>'}
+                        </ul>
+                    </div>
+                    <div class="px-6 py-4 border-b">
+                        <div class="font-semibold text-gray-800 mb-1">Timeline</div>
+                        <div class="text-gray-600">${dest.timeline.visaApplication}</div>
+                        <div class="text-gray-600 mt-1">Book by: ${dest.timeline.bookingDeadline}</div>
+                    </div>
+                    <div class="px-6 py-6 flex flex-col gap-3">
+                        <a href="${flightUrl}" target="_blank" rel="noopener noreferrer" class="block w-full font-semibold py-3 px-4 rounded-lg text-center transition-colors" style="background-color: #FFC107; color: #333333;" onmouseover="this.style.backgroundColor='#FFB300'" onmouseout="this.style.backgroundColor='#FFC107'">
+                            Book Flight
+                        </a>
+                        <a href="${hotelUrl}" target="_blank" rel="noopener noreferrer" class="block w-full font-semibold py-3 px-4 rounded-lg text-center border border-blue-600 text-blue-600 bg-white hover:bg-blue-50 transition-colors">
+                            Book Hotel
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+        function buildFlightUrl(dest) {
+            // Travelbeta flight search URL in the required format
+            const { origin, destination, departureDate, returnDate } = dest.flightDetails;
+            // Compose tripDetails JSON
+            const tripDetails = [{
+                originAirportCode: origin.iata,
+                destinationAirportCode: destination.iata,
+                departureDate: `${departureDate} 00:00:00.0`,
+                returnDate: `${returnDate} 00:00:00.0`,
+                departureCity: origin.city,
+                arrivalCity: destination.city,
+                cabinType: 'ECONOMY'
+            }];
+            // Encode tripDetails
+            const tripDetailsEncoded = encodeURIComponent(JSON.stringify(tripDetails));
+            // Compose other params
+            const params = new URLSearchParams({
+                tripDetails: tripDetailsEncoded,
+                flightType: 'ROUND',
+                numberOfAdult: '1',
+                numberOfChildren: '0',
+                numberOfInfant: '0',
+                uniqueSession: Math.random().toString(36).substring(2, 15),
+                directFlight: 'true',
+                refundable: 'false',
+                isDayFlight: 'true',
+                prefferedAirlineCodes: encodeURIComponent(JSON.stringify([])),
+                departureCity: origin.city,
+                arrivalCity: destination.city
+            });
+            // Example searchId (simulate)
+            const searchId = Math.random().toString(36).substring(2, 14);
+            return `https://travelbeta.com/search/${searchId}?${params.toString()}`;
+        }
+
+        function buildHotelUrl(dest) {
+            const { destination, departureDate, returnDate } = dest.flightDetails;
+            const cityName = destination.city.toLowerCase().replace(/\s+/g, '-');
+            const country = destination.name.toLowerCase().replace(/\s+/g, '-');
+            const params = new URLSearchParams({
+                checkin: departureDate,
+                checkout: returnDate,
+                adults: '1',
+                children: '0',
+                infants: '0'
+            });
+            return `https://travelbeta.com/?tab=hotel`;
+        }
+
+    </script>
+    
 </body>
-
-<script src="script.js"></script>
-
 </html>
