@@ -1,5 +1,6 @@
 // import_visa_data.js
-import { existsSync, readFileSync, createReadStream, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import fetch from 'node-fetch';
 import initSqlJs from 'sql.js';
 import csv from 'csv-parser'
 
@@ -40,23 +41,28 @@ async function importVisaRequirements() {
     // Import CSV
     const visaData = [];
 
-    await new Promise((resolve, reject) => {
-        createReadStream(`${process.cwd()}/json/visa_requirements.csv`)
-            .pipe(csv())
-            .on('data', (row) => {
-                const originId = getCountryId(db, row.Passport);
-                const destId = getCountryId(db, row.Destination);
-
-                if (originId && destId) {
-                    visaData.push({
-                        origin_country_id: originId,
-                        destination_country_id: destId,
-                        requirement: row.Requirement
-                    });
-                } 
-            })
-            .on('end', resolve)
-            .on('error', reject);
+    await new Promise(async (resolve, reject) => {
+        try {
+            const response = await fetch('https://raw.githubusercontent.com/ilyankou/passport-index-dataset/refs/heads/master/passport-index-tidy-iso2.csv');
+            if (!response.ok) throw new Error(`Failed to fetch CSV: ${response.statusText}`);
+            response.body
+                .pipe(csv())
+                .on('data', (row) => {
+                    const originId = getCountryId(db, row.Passport);
+                    const destId = getCountryId(db, row.Destination);
+                    if (originId && destId) {
+                        visaData.push({
+                            origin_country_id: originId,
+                            destination_country_id: destId,
+                            requirement: row.Requirement
+                        });
+                    }
+                })
+                .on('end', resolve)
+                .on('error', reject);
+        } catch (err) {
+            reject(err);
+        }
     });
 
     console.log(`Importing ${visaData.length} visa requirements...`);

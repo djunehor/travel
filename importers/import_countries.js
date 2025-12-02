@@ -4,7 +4,7 @@ import initSqlJs from 'sql.js';
 async function importCountries() {
     const SQL = await initSqlJs();
     const dbPath = `${process.cwd()}/vacation_planner.db`;
-    
+
     let db;
     if (existsSync(dbPath)) {
         const buffer = readFileSync(dbPath);
@@ -12,13 +12,24 @@ async function importCountries() {
     } else {
         db = new SQL.Database();
     }
-    
+
     db.run(`DROP TABLE IF EXISTS countries`);
     db.run(`
         CREATE TABLE countries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   iso2 TEXT NOT NULL UNIQUE,
+  iso3 TEXT NOT NULL UNIQUE,
+  tld TEXT,                 -- Top-level domain
+  capital TEXT,
+  region TEXT,
+  subregion TEXT,
+  currencyCode TEXT,
+  languageCode TEXT,
+  latitude REAL,
+  longitude REAL,
+area REAL,               -- in square kilometers
+flag TEXT, -- emoji flag
 
   -- Travel interest categories
   beach_relaxation BOOLEAN DEFAULT 0,
@@ -41,18 +52,22 @@ async function importCountries() {
 );
 
     `);
+
+    const request = await fetch('https://raw.githubusercontent.com/mledoze/countries/refs/heads/master/countries.json')
+    const countries = await request.json();
     
-    const countries = JSON.parse(readFileSync('./json/countries.json'))
-    
+
     for (const country of countries) {
-        db.run(
-            `INSERT OR REPLACE INTO countries 
-             (name, iso2) 
-             VALUES (?, ?)`,
-            [country.name, country.code]
-        );
+        try {
+            db.run(
+                `INSERT INTO countries (name, iso2, iso3, tld, capital, region, subregion, currencyCode, languageCode, latitude, longitude, area, flag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [country.name.common, country.cca2, country.cca3, country.tld[0], country.capital[0] || null, country.region, country.subregion || null, Object.keys(country.currencies)[0] || null, Object.keys(country.languages)[0] || null, country.latlng[0], country.latlng[1], country.area, country.flag]
+            );
+        } catch (e) {
+            console.error('Error inserting country:', country, e);
+        }
     }
-    
+
     writeFileSync(dbPath, Buffer.from(db.export()));
     console.log(`Imported ${countries.length} countries`);
 }

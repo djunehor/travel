@@ -54,7 +54,7 @@ export async function scrapeFlightAccommodation(origin, destination, checkInStr,
             //   "searchId": "t1762193180350fe59",
             //   "vcSearchId": "590905357"
         }
-        if(children > 0) {
+        if (children > 0) {
             query.ages = Array(children).fill('11').join(',')
         }
 
@@ -119,7 +119,7 @@ export async function scrapeFlightAccommodation(origin, destination, checkInStr,
         };
 
         // if empty list, abort here
-        const isEmpty = await page.$('div.openx-ui-filters-no-results', );
+        const isEmpty = await page.$('div.openx-ui-filters-no-results',);
         if (isEmpty) {
             console.log(new Date().toLocaleString(), '⚠️ No accommodation results found for the given criteria.', url);
             return null;
@@ -128,28 +128,45 @@ export async function scrapeFlightAccommodation(origin, destination, checkInStr,
 
 
         // Extract accommodation information
-        const hotelData = await page.evaluate(() => {
-            const propertyElement = document.querySelector('div.list-container div[data-testid="card-container"]');
-            if (!propertyElement) return null;
+        const allHotelData = await page.evaluate(() => {
+            const propertyElements = Array.from(document.querySelectorAll('div.list-container div[data-testid="card-container"] a'));
+            const allData = [];
 
-            const [rating, approval, reviews] = propertyElement.querySelectorAll('a[data-testid="details"] > div > div')?.[1]?.innerText.trim().split('\n').map((s) => s.trim()) || [null, null, null];
+            for (let i = 0; i < propertyElements.length; i = i + 2) {
+                const propertyElement = propertyElements[i].parentElement;
+                if (!propertyElement) continue;
 
-            return {
-                url: propertyElement.querySelector('a')?.href || null,
-                img: propertyElement.querySelector('img')?.src || null,
-                name: propertyElement.querySelector('a[data-testid="details"] > div > div')?.textContent.trim() || null,
-                rating: rating || null,
-                approval: approval || null,
-                price: propertyElement.querySelectorAll('a[data-testid="details"] > div')?.[1]?.children[1]?.textContent.trim().replace(/[^0-9]/g, '') || null,
-                reviews: reviews || null,
-                perks: propertyElement.querySelectorAll('div[data-testid="recommended-units"] li') ? Array.from(propertyElement.querySelectorAll('div[data-testid="recommended-units"] li')).map(li => li.textContent).join(', ') : [],
-                // address: propertyElement.querySelector('span[data-testid="address"]')?.textContent.trim() || null
-            };
+                const [rating, approval, reviews] = propertyElement.querySelectorAll('a[data-testid="details"] > div > div')?.[1]?.innerText.trim().split('\n').map((s) => s.trim()) || [null, null, null];
+
+                allData.push({
+                    url: propertyElement.querySelector('a')?.href || null,
+                    img: propertyElement.querySelector('img')?.src || null,
+                    name: propertyElement.querySelector('a[data-testid="details"] > div > div')?.textContent.trim() || null,
+                    rating: rating ? Number(rating) : null,
+                    approval: approval || null,
+                    stars: propertyElement.querySelectorAll('a[data-testid="details"] > div > div')[1].querySelector('[role="img"]')?.children.length || null,
+                    priceRaw: propertyElement.querySelectorAll('a[data-testid="details"] > div')?.[1]?.children[1]?.textContent.trim() || null,
+                    price: Number(propertyElement.querySelectorAll('a[data-testid="details"] > div')?.[1]?.children[1]?.textContent.trim().replace(/[^0-9]/g, '') || null),
+                    deposit: Number(propertyElement.querySelectorAll('a[data-testid="details"] > div')?.[1]?.children[2]?.textContent.trim().replace(/[^0-9]/g, '') || null),
+                    depositRaw: propertyElement.querySelectorAll('a[data-testid="details"] > div')?.[1]?.children[2]?.textContent.trim() || null,
+                    priceCurrency: propertyElement.querySelectorAll('a[data-testid="details"] > div')?.[1]?.children[1]?.textContent.replace(/[0-9\s.,pP]/g, '').trim() || null,
+                    reviews: reviews ? Number(reviews.replace(/[^0-9,.]/g, '').trim().replace(/\./g, '').replace(',', '.')) : null,
+                    perks: propertyElement.querySelectorAll('div[data-testid="recommended-units"] li') ? Array.from(propertyElement.querySelectorAll('div[data-testid="recommended-units"] li')).map(li => li.textContent).join(', ') : [],
+                    address: propertyElement.querySelectorAll('a')[1].querySelectorAll('div span')[2]?.textContent.split(',')[0].trim() || null
+                });
+            }
+            return allData;
         });
+
+        // sort by price
+        allHotelData.sort((a, b) => a.price - b.price);
+
+        // find first hotel with rating greater than 8.0
+        const hotelData = allHotelData.find(hotel => hotel.rating >= 8.0);
 
         const result = {
             ...hotelData || {},
-            pricePerNight: hotelData?.price ? parseFloat(parseInt(hotelData.price.replace(/[^0-9]/g, '')) / durationDays).toFixed(2) : null,
+            pricePerNight: hotelData?.price ? parseFloat(hotelData?.price / durationDays).toFixed(2) : null,
             from: checkInStr,
             to: checkOutStr
         };
@@ -163,7 +180,7 @@ export async function scrapeFlightAccommodation(origin, destination, checkInStr,
                 console.warn('⚠️ Redis set error:', err.message);
             }
         }
-  
+
         return result;
 
     } catch (error) {

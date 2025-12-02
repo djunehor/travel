@@ -1,6 +1,6 @@
 import { saveDatabase } from './database.js';
 import { getRedisClient } from './redis.js';
-import { getEligibleDestinations } from './destination.js';
+import { getEligibleDestinations, getCountryByIata } from './destination.js';
 import { getDateRange, getDurationDays, calculateBookingDeadline } from './date.js'
 import { scrapeFlightAccommodation } from '../scrapers/flight_accommodation.js'
 import { scrapeActivities } from '../scrapers/activities.js'
@@ -154,7 +154,7 @@ export async function processTask(db, taskId, requestData) {
                     adults,
                     children
                 );
-                console.log(new Date().toLocaleString(), `[${taskId}] Flight+accommodation sourcing complete for ${destination.name}:`, flightPlusAccommodation?.price ? `$${flightPlusAccommodation.price}` : 'NO PRICE', flightPlusAccommodation?.price ? undefined : flightPlusAccommodation);
+                console.log(new Date().toLocaleString(), `[${taskId}] Flight+accommodation sourcing complete for ${destination.name}:`, flightPlusAccommodation?.price ? `$${flightPlusAccommodation.price}` : 'NO PRICE');
 
                 if (await checkCancelled(db, taskId)) {
                     console.log(new Date().toLocaleString(), `[${taskId}] CANCELLED: Task cancelled after flight+accommdation sourcing`);
@@ -191,7 +191,7 @@ export async function processTask(db, taskId, requestData) {
                 }
 
                 if (!activitiesData?.totalPrice || activitiesData.totalPrice > budgetRanges[requestData.budget].max) {
-                    console.log(new Date().toLocaleString(), `[${taskId}] Activities price invalid or exceeds budget, using empty activities`);
+                    console.log(new Date().toLocaleString(), `[${taskId}] Activities price invalid or exceeds budget, using empty activities`, activitiesData);
                     activitiesData = { activities: [], totalPrice: 0 };
                 }
                 logTaskProgress(db, taskId, `Activities found for ${destination.name} totaling $${activitiesData.totalPrice}`);
@@ -212,19 +212,25 @@ export async function processTask(db, taskId, requestData) {
                 }
 
                 console.log(new Date().toLocaleString(), `[${taskId}] ADDING RESULT: ${destination.name} with cost $${totalCost}`);
+                const departureAirportAndCountry = getCountryByIata(db, departure.iata);
+                const arrivalAirportAndCountry = getCountryByIata(db, destination.airportCode);
+        
                 results.push({
                     name: destination.name,
                     visaStatus: destination.visaStatus,
                     visaProcessingTime: destination.visaProcessingTime,
                     visaRequirements: destination.visaRequirements,
                     estimatedCost: {
-                        flights: flightPlusAccommodation.price,
-                        accommodation: 0,
+                        flights: 0.5 * flightPlusAccommodation.price,
+                        accommodation: 0.5 * flightPlusAccommodation.price,
                         activities: activitiesData.totalPrice,
                         total: totalCost
                     },
                     flightDetails: {
-
+                        origin: departureAirportAndCountry,
+                        destination: arrivalAirportAndCountry,
+                        departureDate: departureDate.toISOString().split('T')[0],
+                        returnDate: returnDate.toISOString().split('T')[0],
                     },
                     accommodationSuggestion: `<a href="${flightPlusAccommodation.url}" target="_blank">${flightPlusAccommodation.name}</a><br>${flightPlusAccommodation.address}<br>Rating: ${flightPlusAccommodation.rating} (${flightPlusAccommodation.reviews} reviews)<br>Price: ${flightPlusAccommodation.price} (${flightPlusAccommodation.pricePerNight} per night)<br>Perks: ${flightPlusAccommodation.perks || ''}<br><a href="${flightPlusAccommodation.url}" target="_blank">View on Booking.com</a>`,
                     topActivities: activitiesData.activities,

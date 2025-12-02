@@ -85,7 +85,7 @@ export async function scrapeActivities(destination, checkInStr, checkOutStr, dur
 
 
         // Extract activities
-        const activitiesData = await page.evaluate(() => {
+        const activities = await page.evaluate(() => {
             const activities = [];
             const activityElements = document.querySelectorAll('section div[class="activity-card-block activity-card-block--grid"]');
 
@@ -100,7 +100,9 @@ export async function scrapeActivities(destination, checkInStr, checkOutStr, dur
                         url: el.querySelector('a') ? el.querySelector('a').href : null,
                         name: titleElement?.textContent.trim(),
                         price: priceElement?.textContent.trim(),
-                        priceUnit: priceUnitElement?.textContent.trim()
+                        priceNumber: Number(priceElement?.textContent.trim().replace(/[^0-9]/g, '') || '0'),
+                        priceUnit: priceUnitElement?.textContent.trim(),
+                        currency: priceElement?.textContent.trim().replace(/[0-9,. ]/g, '').trim() || null,
                     });
                 }
 
@@ -108,17 +110,36 @@ export async function scrapeActivities(destination, checkInStr, checkOutStr, dur
 
             return activities;
         });
-        console.log(new Date().toLocaleString(), `✅ Extracted ${activitiesData.length} activities`, activitiesData.slice(0, 3));
+    
+        // we neeed to take as many acvtivities as possible within budget, then calculate total price for that
+        const sortedActivities = activities.sort((a, b) => a.priceNumber - b.priceNumber);
 
-        const activities = activitiesData;
-        const totalPrice = activities.reduce((sum, activity) => {
-            const price = parseInt(activity.price?.replace(/[^0-9]/g, '') || '0');
-            return sum + (isNaN(price) ? 0 : price);
-        }, 0);
+        const selectedActivities = [];
+        let currentTotal = 0;
+        for (let i = 0; i < sortedActivities.length; i++) {
+            const activity = sortedActivities[i];
+            const price = activity.priceNumber;
+            if (isNaN(price)) continue;
+            if (currentTotal + price <= budget) {
+                selectedActivities.push(activity);
+                currentTotal += price;
+            } else {
+                break;
+            }
+        }
 
+        console.log(new Date().toLocaleString(), `✅ Selected ${selectedActivities.length} activities within budget $${budget}, total price $${currentTotal}`);
+
+        // we need to add "day" info to each activity e.g 1 means day 1, 2 means day 2 etc.
+        for (let i = 0; i < selectedActivities.length; i++) {
+            const activity = selectedActivities[i];
+            activity.day = (i % durationDays) + 1;
+        }
+        // sort by day
+        selectedActivities.sort((a, b) => a.day - b.day);
         const result = {
-            activities,
-            totalPrice
+            activities: selectedActivities,
+            totalPrice: currentTotal
         };
 
         // Cache the result for 24 hours

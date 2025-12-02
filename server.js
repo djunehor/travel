@@ -3,16 +3,18 @@ import cors from 'cors';
 import { getRedisClient } from './helpers/redis.js';
 import { initDatabase, setupDabatase, saveDatabase } from './helpers/database.js';
 import { generateTaskId, processTask, updateTaskStatus, cancelTask } from './helpers/task.js';
-import { getEligibleDestinations, getFlagEmoji } from './helpers/destination.js'
+import { getEligibleDestinations, getFlagEmoji, fetchCurrencyRates } from './helpers/destination.js'
 import * as dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
 app.use(json());
+
+const PORT = process.env.PORT || 3000;
+const CACHE_TTL = 86400 * 90; 
 
 const redisClient = getRedisClient();
 let db;
@@ -50,8 +52,6 @@ app.post('/api/plan-vacation', async (req, res) => {
         res.status(500).json({ error: 'Failed to create task' });
     }
 });
-
-const CACHE_TTL = 86400 * 90; 
 
 app.post('/api/check-travel', async (req, res) => {
     try {
@@ -182,6 +182,39 @@ app.get('/api/task/:taskId', async (req, res) => {
     }
 });
 
+// API: Cancel task
+app.post('/api/task/:taskId/cancel', async (req, res) => {
+    try {
+        const { taskId } = req.params;
+
+        const taskResult = db.exec(`SELECT status FROM tasks WHERE id = ?`, [taskId]);
+        if (!taskResult.length || !taskResult[0].values.length) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+
+        const [status] = taskResult[0].values[0];
+        if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+            return res.status(400).json({ error: `Cannot cancel a task with status ${status}` });
+        }
+
+        // Update status to cancelled
+        const now = Date.now();
+        db.run(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`, ['cancelled', now, taskId]);
+        saveDatabase(db);
+
+        // Optional: set a Redis flag so the running process can stop early
+        const redisClient = getRedisClient();
+        if (redisClient) {
+            await redisClient.set(`cancel:${taskId}`, '1', 'EX', 3600); // expire in 1 hour
+        }
+
+        res.json({ taskId, status: 'cancelled' });
+    } catch (err) {
+        console.error('Error cancelling task:', err);
+        res.status(500).json({ error: 'Failed to cancel task' });
+    }
+});
+
 // Get all airports
 app.get('/api/airports', (_, res) => {
     try {
@@ -214,17 +247,23 @@ app.get('/api/airports', (_, res) => {
 app.get('/api/countries', (_, res) => {
     try {
         const result = db.exec(
-            `SELECT id, name, iso2 FROM countries ORDER BY name`
+            `SELECT id, name, iso2, capital, region, subregion, languageCode, currencyCode FROM countries ORDER BY name`
         );
         
         if (!result.length || !result[0].values.length) {
             return res.json([]);
         }
         
-        const countries = result[0].values.map(([id, name, iso2]) => ({
+        const countries = result[0].values.map(([id, name, iso2, capital, region, subregion, languageCode, currencyCode]) => ({
             id,
             name,
-            code: iso2
+            code: iso2,
+            capital,
+            region,
+            subregion,
+            languageCode,
+            currencyCode,
+            emoji: getFlagEmoji(iso2)
         }));
         
         res.json(countries);
@@ -234,36 +273,13 @@ app.get('/api/countries', (_, res) => {
     }
 });
 
-// API: Cancel task
-app.post('/api/task/:taskId/cancel', async (req, res) => {
+app.get('/api/rates', async (_, res) => {
     try {
-        const { taskId } = req.params;
-
-        const taskResult = db.exec(`SELECT status FROM tasks WHERE id = ?`, [taskId]);
-        if (!taskResult.length || !taskResult[0].values.length) {
-            return res.status(404).json({ error: 'Task not found' });
-        }
-
-        const [status] = taskResult[0].values[0];
-        if (status === 'completed' || status === 'failed' || status === 'cancelled') {
-            return res.status(400).json({ error: `Cannot cancel a task with status ${status}` });
-        }
-
-        // Update status to cancelled
-        const now = Date.now();
-        db.run(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`, ['cancelled', now, taskId]);
-        saveDatabase(db);
-
-        // Optional: set a Redis flag so the running process can stop early
-        const redisClient = getRedisClient();
-        if (redisClient) {
-            await redisClient.set(`cancel:${taskId}`, '1', 'EX', 3600); // expire in 1 hour
-        }
-
-        res.json({ taskId, status: 'cancelled' });
+        const rates = await fetchCurrencyRates();
+        res.json(rates);
     } catch (err) {
-        console.error('Error cancelling task:', err);
-        res.status(500).json({ error: 'Failed to cancel task' });
+        console.error('Error fetching rates:', err);
+        res.status(500).json({ error: 'Failed to fetch rates' });
     }
 });
 

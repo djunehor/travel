@@ -240,3 +240,8 @@ MIT License © 2025 Your Name
 * [OpenAI API Docs (2025)](https://platform.openai.com/docs/api-reference)
 * [sql.js Documentation (2024)](https://sql.js.org/)
 * [ioredis GitHub (2024)](https://github.com/luin/ioredis)
+
+## Integrations
+- Travelstart.com.ng (Flight): https://www.travelstart.com.ng/flights/results?version=3&timestamp=2025-12-02_11-30-22-030&from_0=LOS&from_type_0=airport&to_0=SEZ&to_type_0=airport&depart_date_0=2025-12-24&from_1=SEZ&from_type_1=airport&to_1=LOS&to_type_1=airport&depart_date_1=2025-12-27&is_flex_dates=false&trip_type=Roundtrip&adults=1&youngAdults=0&children=0&infants=0&currency=NGN&cpy_source=tsngweb&search=true&show_search_options=false&language=en&class=Economy&correlation_id=3dd650e8-0e1a-4b66-89db-7bdb89b07f4b
+
+- Travelstart.com.ng (Hotel): https://www.travelstart.co.za/accommodation/in/frankfurt-am-main-germany?checkin=2025-12-18&checkout=2025-12-21&adults=1&children=0&infants=0

@@ -1,3 +1,5 @@
+import { getRedisClient } from './redis.js';
+
 export function normalizeVisaStatus(requirement) {
     if (!requirement) return 'visa required';
     const req = requirement.toLowerCase().trim();
@@ -15,9 +17,9 @@ export function getFlagEmoji(countryCode) {
     if (!countryCode || countryCode.length !== 2) {
         return ''; // Return empty string for invalid codes
     }
-    
+
     // The magic offset: 127397 (Regional Indicator 'A' - ASCII 'A')
-    const OFFSET = 127397; 
+    const OFFSET = 127397;
 
     // 1. Convert to uppercase
     // 2. Split into individual characters ('D', 'E')
@@ -68,8 +70,8 @@ export function getCountryId(db, iso2) {
 function isSchengenCountry(iso2) {
     if (!iso2) return false;
     const SCHENGEN_ISO2 = new Set([
-        'AT', 'BE', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 
-        'IS', 'IT', 'LV', 'LI', 'LT', 'LU', 'MT', 'NL', 'NO', 'PL', 
+        'AT', 'BE', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU',
+        'IS', 'IT', 'LV', 'LI', 'LT', 'LU', 'MT', 'NL', 'NO', 'PL',
         'PT', 'SK', 'SI', 'ES', 'SE', 'CH', 'BG', 'HR', 'RO'
     ]);
     return SCHENGEN_ISO2.has(iso2.toUpperCase());
@@ -82,10 +84,10 @@ export function getVisaEligibilityForTraveler(db, traveler, visaPreference) {
     console.log(`[DEBUG] Starting eligibility check for: ${traveler.nationality} (Nat), ${traveler.residence} (Res)`);
 
     const nationalityId = getCountryId(db, traveler.nationality);
-    
+
     // --- 1. Prepare Held Policies and Separate by Type ---
     const heldPolicies = [];
-    
+
     // a) Add Residence Permit Policy (Priority 1)
     if (traveler.residence) {
         let residencePolicyValue;
@@ -145,7 +147,7 @@ export function getVisaEligibilityForTraveler(db, traveler, visaPreference) {
             `SELECT destination_country_id, resulting_requirement 
              FROM destination_visa_policies 
              WHERE condition_value = ?`,
-            [residencePolicy] 
+            [residencePolicy]
         );
 
         if (policyResults.length && policyResults[0].values.length) {
@@ -156,8 +158,8 @@ export function getVisaEligibilityForTraveler(db, traveler, visaPreference) {
 
                 if (isBetter) {
                     // Update only if strictly better
-                    eligible.set(destId, { 
-                        requirement: normalized, 
+                    eligible.set(destId, {
+                        requirement: normalized,
                         source: `residence_${traveler.residence.toUpperCase()}`
                     });
                     console.log(`[DEBUG] -> Dest ${destId}: UPDATED to ${normalized} (RESIDENCE - Better)`);
@@ -166,7 +168,7 @@ export function getVisaEligibilityForTraveler(db, traveler, visaPreference) {
                 // because we check Residence FIRST, but we'll add a check for robustness if Residence runs AFTER a Held Visa,
                 // which is prevented by this structural change, but the next loop iteration might be needed for the UK visa to run first
                 // if the order was somehow reversed. The previous priority fix is better placed here to show intent:
-                
+
                 // Since this section is dedicated to the Residence Policy, we MUST ensure the source is set if it's the best status.
                 // However, since we now check Residence FIRST, we only need 'isBetter'. 
             }
@@ -176,13 +178,13 @@ export function getVisaEligibilityForTraveler(db, traveler, visaPreference) {
     // --- Part B: Other Held Visas (Secondary Priority) ---
     if (otherPolicies.length > 0) {
         console.log(`[DEBUG] Processing Other Held Visas: ${otherPolicies.join(', ')}`);
-        for (const heldVisa of otherPolicies) { 
-            
+        for (const heldVisa of otherPolicies) {
+
             const policyResults = db.exec(
                 `SELECT destination_country_id, resulting_requirement 
                  FROM destination_visa_policies 
                  WHERE condition_value = ?`,
-                [heldVisa] 
+                [heldVisa]
             );
 
             if (policyResults.length && policyResults[0].values.length) {
@@ -193,14 +195,14 @@ export function getVisaEligibilityForTraveler(db, traveler, visaPreference) {
                     // Only update if this held visa is STRICTLY better than what's currently recorded 
                     // (which should be the Residence Policy result, if applicable).
                     if (!existingInfo || isRequirementBetter(normalized, existingInfo.requirement)) {
-                        
-                        eligible.set(destId, { 
-                            requirement: normalized, 
+
+                        eligible.set(destId, {
+                            requirement: normalized,
                             source: `holds_${heldVisa.replace('_RESIDENCE_PERMIT', '')}_visa`
                         });
                         console.log(`[DEBUG] -> Dest ${destId}: UPDATED to ${normalized} (VISA - Strictly Better)`);
                     } else {
-                         console.log(`[DEBUG] -> Dest ${destId}: SKIPPED ${heldVisa} (Not Better than ${existingInfo?.requirement})`);
+                        console.log(`[DEBUG] -> Dest ${destId}: SKIPPED ${heldVisa} (Not Better than ${existingInfo?.requirement})`);
                     }
                 }
             }
@@ -244,6 +246,31 @@ function getCountryCodeByIata(db, iata) {
 }
 
 /**
+ * Get country by airport IATA code
+ * @param {Object} db - Database instance
+ * @param {string} iata - Airport IATA code (e.g., 'LOS', 'JFK')
+ * @returns {Object|null} - Country object {id, country_id, iata, airport_name, city, region, iso2, name, continent, sub_continent} or null if not found
+ */
+export function getCountryByIata(db, iata) {
+    if (!iata) return null;
+
+    const result = db.exec(
+        `SELECT a.id, c.id as country_id, a.iata, a.name as airport_name, a.city, a.region, c.iso2, c.name, c.region as continent, c.subregion as sub_continent
+         FROM airports a
+         JOIN countries c ON a.country_id = c.id
+         WHERE a.iata = ?`,
+        [iata.toUpperCase()]
+    );
+
+    if (result.length && result[0].values.length) {
+        const [id, country_id, iata, airport_name, city, region, iso2, name, continent, sub_continent] = result[0].values[0];
+        return { id, country_id, iata, airport_name, city, region, iso2, name, continent, sub_continent };
+    }
+
+    return null;
+}
+
+/**
  * Get primary airport for a country by country code
  * @param {Object} db - Database instance
  * @param {string} countryCode - Country ISO2 code (e.g., 'NG', 'US')
@@ -252,20 +279,61 @@ function getCountryCodeByIata(db, iata) {
 export function getAirportByCountryCode(db, countryCode) {
     if (!countryCode) return null;
 
+    // Get all airports and country/capital info
     const result = db.exec(
-        `SELECT a.iata, a.name, a.region as city
+        `SELECT a.iata, a.name, a.city, a.latitude, a.longitude, c.capital, c.latitude as country_latitude, c.longitude as country_longitude
          FROM airports a
          JOIN countries c ON a.country_id = c.id
-         WHERE c.iso2 = ?
-         LIMIT 1`,
+         WHERE c.iso2 = ?`,
         [countryCode.toUpperCase()]
     );
 
-    if (result.length && result[0].values.length) {
-        const [iata, name, city] = result[0].values[0];
-        return { iata, name, city };
+    if (!result.length || !result[0].values.length) return null;
+
+    const airports = result[0].values.map(row => {
+        const [iata, name, city, latitude, longitude, capital, countryLat, countryLon] = row;
+        return { iata, name, city, latitude, longitude, capital, countryLat, countryLon };
+    });
+
+    // Try to find airports in the capital city
+    const capitalName = airports[0].capital;
+    const inCapital = airports.filter(a => a.city && a.city.toLowerCase() === (capitalName || '').toLowerCase());
+
+    // Haversine formula
+    function haversine(lat1, lon1, lat2, lon2) {
+        function toRad(x) { return x * Math.PI / 180; }
+        const R = 6371;
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
     }
 
+    let closestAirport = null;
+    if (inCapital.length > 0) {
+        // Use country center as proxy for capital center
+        const countryLat = airports[0].countryLat;
+        const countryLon = airports[0].countryLon;
+        closestAirport = inCapital.reduce((min, a) => {
+            const dist = haversine(countryLat, countryLon, a.latitude, a.longitude);
+            return (!min || dist < min.dist) ? { airport: a, dist } : min;
+        }, null).airport;
+    } else {
+        // Find closest to country center
+        const countryLat = airports[0].countryLat;
+        const countryLon = airports[0].countryLon;
+        closestAirport = airports.reduce((min, a) => {
+            const dist = haversine(countryLat, countryLon, a.latitude, a.longitude);
+            return (!min || dist < min.dist) ? { airport: a, dist } : min;
+        }, null).airport;
+    }
+
+    if (closestAirport) {
+        return { iata: closestAirport.iata, name: closestAirport.name, city: closestAirport.city };
+    }
     return null;
 }
 
@@ -495,4 +563,37 @@ function generateVisaTimeline(db, visaStatus, travelers, countryName, source) {
 
     // Default for 'visa required'
     return `Standard visa application required. Apply at ${countryName} embassy or consulate 2-4 weeks before departure.`;
+}
+
+export async function fetchCurrencyRates() {
+    const redisClient = getRedisClient();
+    if (redisClient) {
+        const currencyRates = await redisClient.get(`currency_rates`);
+
+        if (currencyRates) {
+            return JSON.parse(currencyRates);
+        }
+    }
+    return fetch('https://open.er-api.com/v6/latest/USD')
+        .then(res => res.json())
+        .then(async data => {
+            if (redisClient) {
+                await redisClient.set(`currency_rates`, JSON.stringify(data.rates), 'EX', 86400); // Cache for 1 day
+            }
+            return data.rates;
+        }).catch(err => {
+            console.error('Error fetching currency rates:', err);
+            return null;
+        });
+}
+
+ export function convertAmount(amount, fromCurrency, toCurrency, currencyRates) {
+    if (fromCurrency === toCurrency) return amount;
+    const fromRate = currencyRates[fromCurrency];
+    const toRate = currencyRates[toCurrency];
+    if (!fromRate || !toRate) {
+        return 0;
+    }
+    const usdAmount = amount / fromRate; // Convert to USD first
+    return usdAmount * toRate; // Then convert to target currency
 }
