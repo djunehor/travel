@@ -216,8 +216,21 @@ app.post('/api/task/:taskId/cancel', async (req, res) => {
 });
 
 // Get all airports
-app.get('/api/airports', (_, res) => {
+app.get('/api/airports', async (_, res) => {
     try {
+        const cacheKey = 'airports:all';
+        
+        // Check Redis cache
+        const cachedData = await redisClient.get(cacheKey);
+        if (cachedData) {
+            console.log('[CACHE HIT] airports');
+            // Set HTTP cache headers (1 day)
+            res.set('Cache-Control', 'public, max-age=86400');
+            res.set('ETag', `"${Date.now()}"`);
+            return res.json(JSON.parse(cachedData));
+        }
+        
+        console.log('[CACHE MISS] airports');
         const result = db.exec(
             `SELECT a.iata, a.name as airport, a.region as region_name, c.iso2 as country_code
              FROM airports a
@@ -236,6 +249,13 @@ app.get('/api/airports', (_, res) => {
             country_code
         }));
         
+        // Cache in Redis with TTL
+        await redisClient.set(cacheKey, JSON.stringify(airports), 'EX', CACHE_TTL);
+        
+        // Set HTTP cache headers (1 day)
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.set('ETag', `"${Date.now()}"`);
+        
         res.json(airports);
     } catch (err) {
         console.error('Error fetching airports:', err);
@@ -244,8 +264,21 @@ app.get('/api/airports', (_, res) => {
 });
 
 // Get all countries
-app.get('/api/countries', (_, res) => {
+app.get('/api/countries', async (_, res) => {
     try {
+        const cacheKey = 'countries:all';
+        
+        // Check Redis cache
+        const cachedData = await redisClient.get(cacheKey);
+        if (cachedData) {
+            console.log('[CACHE HIT] countries');
+            // Set HTTP cache headers (1 day)
+            res.set('Cache-Control', 'public, max-age=86400');
+            res.set('ETag', `"${Date.now()}"`);
+            return res.json(JSON.parse(cachedData));
+        }
+        
+        console.log('[CACHE MISS] countries');
         const result = db.exec(
             `SELECT id, name, iso2, capital, region, subregion, languageCode, currencyCode FROM countries ORDER BY name`
         );
@@ -266,6 +299,13 @@ app.get('/api/countries', (_, res) => {
             emoji: getFlagEmoji(iso2)
         }));
         
+        // Cache in Redis with TTL
+        await redisClient.set(cacheKey, JSON.stringify(countries), 'EX', CACHE_TTL);
+        
+        // Set HTTP cache headers (1 day)
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.set('ETag', `"${Date.now()}"`);
+        
         res.json(countries);
     } catch (err) {
         console.error('Error fetching countries:', err);
@@ -275,7 +315,28 @@ app.get('/api/countries', (_, res) => {
 
 app.get('/api/rates', async (_, res) => {
     try {
+        const cacheKey = 'rates:currency';
+        
+        // Check Redis cache
+        const cachedData = await redisClient.get(cacheKey);
+        if (cachedData) {
+            console.log('[CACHE HIT] rates');
+            // Set HTTP cache headers (1 day)
+            res.set('Cache-Control', 'public, max-age=86400');
+            res.set('ETag', `"${Date.now()}"`);
+            return res.json(JSON.parse(cachedData));
+        }
+        
+        console.log('[CACHE MISS] rates');
         const rates = await fetchCurrencyRates();
+        
+        // Cache in Redis with 1 day TTL
+        await redisClient.set(cacheKey, JSON.stringify(rates), 'EX', 86400);
+        
+        // Set HTTP cache headers (1 day)
+        res.set('Cache-Control', 'public, max-age=86400');
+        res.set('ETag', `"${Date.now()}"`);
+        
         res.json(rates);
     } catch (err) {
         console.error('Error fetching rates:', err);
