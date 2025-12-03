@@ -255,7 +255,11 @@ export function getCountryByIata(db, iata) {
     if (!iata) return null;
 
     const result = db.exec(
-        `SELECT a.id, c.id as country_id, a.iata, a.name as airport_name, a.city, a.region, c.iso2, c.name, c.region as continent, c.subregion as sub_continent
+        `SELECT a.id, c.id as country_id, a.iata, a.name as airport_name,
+        a.city, a.region, c.iso2, c.name, c.region as continent,
+        c.subregion as sub_continent,
+        c.latitude as country_latitude, c.longitude as country_longitude,
+        a.latitude as airport_latitude, a.longitude as airport_longitude
          FROM airports a
          JOIN countries c ON a.country_id = c.id
          WHERE a.iata = ?`,

@@ -1,23 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Travelbeta - Find Your Perfect Destination</title>
+    <title>Travelstart x Arlo - Find Your Perfect Destination</title>
     <!-- SEO Meta Tags -->
-    <meta name="description" content="Find your perfect travel destination with Travelbeta. Discover visa-free and budget-friendly trips tailored to your nationality, residence, and travel style. Plan your next adventure with ease!">
-    <meta name="keywords" content="travel, visa-free, vacation, destination, flights, hotels, travel planner, travelbeta, budget travel, trip planning, adventure, holiday, tourism">
+    <meta name="description"
+        content="Find your perfect travel destination with Travelbeta. Discover visa-free and budget-friendly trips tailored to your nationality, residence, and travel style. Plan your next adventure with ease!">
+    <meta name="keywords"
+        content="travel, visa-free, vacation, destination, flights, hotels, travel planner, travelbeta, budget travel, trip planning, adventure, holiday, tourism">
     <meta name="robots" content="index, follow">
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:title" content="Travelstart x Arlo - Find Your Perfect Destination">
-    <meta property="og:description" content="Find your perfect travel destination with Travelstart x Arlo. Discover visa-free and budget-friendly trips tailored to your nationality, residence, and travel style. Plan your next adventure with ease!">
+    <meta property="og:description"
+        content="Find your perfect travel destination with Travelstart x Arlo. Discover visa-free and budget-friendly trips tailored to your nationality, residence, and travel style. Plan your next adventure with ease!">
     <meta property="og:site_name" content="Travelstart x Arlo">
     <meta property="og:image" content="/og-image.png">
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Travelstart x Arlo - Find Your Perfect Destination">
-    <meta name="twitter:description" content="Find your perfect travel destination with Travelstart x Arlo. Discover visa-free and budget-friendly trips tailored to your nationality, residence, and travel style. Plan your next adventure with ease!">
+    <meta name="twitter:description"
+        content="Find your perfect travel destination with Travelstart x Arlo. Discover visa-free and budget-friendly trips tailored to your nationality, residence, and travel style. Plan your next adventure with ease!">
 
     <meta name="twitter:image" content="/og-image.png">
 
@@ -25,35 +30,46 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
+
         .animate-spin {
             animation: spin 1s linear infinite;
         }
+
         .travelbeta-gradient {
             background: #000033;
         }
+
         .travelbeta-footer {
             background: #000033;
         }
+
         .travelbeta-header-bar {
             background: #4A4A9B;
         }
+
         .travelbeta-cta {
             background: #FFC107;
             color: #333333;
         }
+
         .travelbeta-cta:hover {
             background: #FFB300;
         }
+
         .travelbeta-tab-active {
             background: #FFC107;
             color: #333333;
         }
+
         .travelbeta-tab-inactive {
             background: #D4D4D4;
             color: #4A4A9B;
         }
+
         .selected-style {
             background: #0052cc !important;
             color: #fff !important;
@@ -62,9 +78,10 @@
         }
     </style>
 </head>
+
 <body class="min-h-screen bg-gray-50">
 
-    
+
     <!-- Travelbeta Header -->
     <header class="bg-white shadow-sm">
         <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -93,27 +110,36 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Nationality</label>
-                            <input type="text" id="nationality" value="NG" placeholder="e.g., NG" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                            <input type="text" id="nationality" value="NG" placeholder="e.g., NG"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                required>
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Residence Country</label>
-                            <input type="text" id="residence" value="DE" placeholder="e.g., DE" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                            <input type="text" id="residence" value="DE" placeholder="e.g., DE"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                required>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Existing Visas (comma-separated)</label>
-                            <input type="text" id="existingVisas" placeholder="e.g., UK, US" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Existing Visas
+                                (comma-separated)</label>
+                            <input type="text" id="existingVisas" placeholder="e.g., UK, US"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Departure Airport</label>
-                            <input type="text" id="departureCode" value="FRA" placeholder="e.g., FRA" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent" required>
+                            <input type="text" id="departureCode" value="FRA" placeholder="e.g., FRA"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                required>
                         </div>
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Budget Range</label>
-                            <select id="budget" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <select id="budget"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="300-500">$300 - $500</option>
                                 <option value="500-1000" selected>$500 - $1,000</option>
                                 <option value="1000-2000">$1,000 - $2,000</option>
@@ -123,7 +149,8 @@
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Trip Duration</label>
-                            <select id="duration" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <select id="duration"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="1-3-days">1-3 days</option>
                                 <option value="3-5-days" selected>3-5 days</option>
                                 <option value="5-7-days">5-7 days</option>
@@ -133,7 +160,8 @@
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Timeframe</label>
-                            <select id="timeframe" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <select id="timeframe"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="1-month" selected>Within 1 month</option>
                                 <option value="3-months">Within 3 months</option>
                                 <option value="6-months">Within 6 months</option>
@@ -142,7 +170,8 @@
 
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Visa Preference</label>
-                            <select id="visaPreference" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <select id="visaPreference"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                                 <option value="visa-free" selected>Visa-free only</option>
                                 <option value="visa-on-arrival">Include visa on arrival</option>
                                 <option value="any">Any visa type</option>
@@ -153,17 +182,31 @@
                     <div class="mb-6">
                         <label class="block text-sm font-medium text-gray-700 mb-2">Travel Styles</label>
                         <div class="flex flex-wrap gap-2" id="travelStyles">
-                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="shopping-nightlife">Shopping & Nightlife</button>
-                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="food-culinary">Food & Culinary</button>
-                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="adventure-outdoor">Adventure & Outdoor</button>
-                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="culture-history">Culture & History</button>
-                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="beach-relaxation">Beach & Relaxation</button>
-                            <button type="button" class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors" data-style="nature-wildlife">Nature & Wildlife</button>
+                            <button type="button"
+                                class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                                data-style="shopping-nightlife">Shopping & Nightlife</button>
+                            <button type="button"
+                                class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                                data-style="food-culinary">Food & Culinary</button>
+                            <button type="button"
+                                class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                                data-style="adventure-outdoor">Adventure & Outdoor</button>
+                            <button type="button"
+                                class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                                data-style="culture-history">Culture & History</button>
+                            <button type="button"
+                                class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                                data-style="beach-relaxation">Beach & Relaxation</button>
+                            <button type="button"
+                                class="style-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                                data-style="nature-wildlife">Nature & Wildlife</button>
                         </div>
                     </div>
-                    <button type="submit" id="searchBtn" class="w-full travelbeta-cta hover:travelbeta-cta font-bold py-3 px-6 rounded-lg transition-all flex items-center justify-center gap-2">
+                    <button type="submit" id="searchBtn"
+                        class="w-full travelbeta-cta hover:travelbeta-cta font-bold py-3 px-6 rounded-lg transition-all flex items-center justify-center gap-2">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                         </svg>
                         <span>Search Destinations</span>
                     </button>
@@ -189,8 +232,10 @@
     <div id="emptyState" class="hidden max-w-7xl mx-auto px-4 py-12">
         <div class="bg-white rounded-lg shadow-lg p-12 text-center">
             <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
             </svg>
             <h3 class="text-2xl font-bold" style="color: #000033" mb-2">No deals found</h3>
             <p class="text-gray-600">Try adjusting your search criteria or dates</p>
@@ -203,7 +248,7 @@
 
         // Travel style toggle
         document.querySelectorAll('.style-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.addEventListener('click', function () {
                 const style = this.getAttribute('data-style');
                 if (selectedStyles.includes(style)) {
                     selectedStyles = selectedStyles.filter(s => s !== style);
@@ -216,12 +261,12 @@
         });
 
         // Form submission
-        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+        document.getElementById('searchForm').addEventListener('submit', async function (e) {
             e.preventDefault();
-            
+
             const visasInput = document.getElementById('existingVisas').value;
             const visas = visasInput ? visasInput.split(',').map(v => v.trim().toUpperCase()) : [];
-            
+
             const payload = {
                 travelers: [{
                     name: "Traveler 1",
@@ -266,7 +311,7 @@
 
         // Travel style toggle
         document.querySelectorAll('.style-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
+            btn.addEventListener('click', function () {
                 const style = this.getAttribute('data-style');
                 if (selectedStyles.includes(style)) {
                     selectedStyles = selectedStyles.filter(s => s !== style);
@@ -281,12 +326,12 @@
         });
 
         // Form submission
-        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+        document.getElementById('searchForm').addEventListener('submit', async function (e) {
             e.preventDefault();
-            
+
             const visasInput = document.getElementById('existingVisas').value;
             const visas = visasInput ? visasInput.split(',').map(v => v.trim().toUpperCase()) : [];
-            
+
             const payload = {
                 travelers: [{
                     name: "Traveler 1",
@@ -340,7 +385,7 @@
 
                     if (data.data && data.data.destinations) {
                         const count = data.data.destinations.length;
-                        document.getElementById('loadingText').textContent = 
+                        document.getElementById('loadingText').textContent =
                             `Found ${count} destination${count !== 1 ? 's' : ''}... ${data.status === 'completed' ? 'Complete!' : 'Finding more...'}`;
 
                         // Show results as soon as at least 1 destination is available
@@ -417,19 +462,19 @@
                         <div class="flex flex-col gap-2">
                             <div class="flex justify-between">
                                 <span class="text-gray-600">Flights</span>
-                                <span class="font-semibold text-gray-800">${dest.estimatedCost.priceCurrency || ''}${dest.estimatedCost.flights}</span>
+                                <span class="font-semibold text-gray-800">~${dest.estimatedCost.currency || ''}${dest.estimatedCost.flights}</span>
                             </div>
                             <div class="flex justify-between">
                                 <span class="text-gray-600">Accommodation</span>
-                                <span class="font-semibold text-gray-800">${dest.estimatedCost.priceCurrency || ''}${dest.estimatedCost.accommodation}</span>
+                                <span class="font-semibold text-gray-800">~${dest.estimatedCost.currency || ''}${dest.estimatedCost.accommodation}</span>
                             </div>
                             <div class="flex justify-between">
                                 <span class="text-gray-600">Activities</span>
-                                <span class="font-semibold text-gray-800">${dest.estimatedCost.priceCurrency || ''}${dest.estimatedCost.activities}</span>
+                                <span class="font-semibold text-gray-800">${dest.estimatedCost.currency || ''}${dest.estimatedCost.activities}</span>
                             </div>
                             <div class="flex justify-between">
                                 <span class="text-gray-800 font-bold">Total</span>
-                                <span class="font-bold text-green-600">${dest.estimatedCost.priceCurrency || ''}${dest.estimatedCost.total}</span>
+                                <span class="font-bold text-green-600">${dest.estimatedCost.currency || ''}${dest.estimatedCost.total}</span>
                             </div>
                         </div>
                     </div>
@@ -444,7 +489,7 @@
                     <div class="px-6 py-4 border-b">
                         <div class="font-semibold text-gray-800 mb-1">Top Activities</div>
                         <ul class="list-disc ml-5">
-                            ${dest.topActivities && dest.topActivities.length > 0 ? dest.topActivities.slice(0,5).map(a => `<li><a href="${a.url}" target="_blank" class="text-blue-600 hover:underline">${a.name}</a> (${a.price})</li>`).join('') : '<li>No activities found.</li>'}
+                            ${dest.topActivities && dest.topActivities.length > 0 ? dest.topActivities.slice(0, 5).map(a => `<li><a href="${a.url}" target="_blank" class="text-blue-600 hover:underline">${a.name}</a> (${a.price})</li>`).join('') : '<li>No activities found.</li>'}
                         </ul>
                     </div>
                     <div class="px-6 py-4 border-b">
@@ -477,11 +522,13 @@
                 arrivalCity: destination.city,
                 cabinType: 'ECONOMY'
             }];
-            // Encode tripDetails
-            const tripDetailsEncoded = encodeURIComponent(JSON.stringify(tripDetails));
+            // *** FIX: Pass the UNENCODED JSON string to URLSearchParams ***
+            const tripDetailsString = JSON.stringify(tripDetails);
+
             // Compose other params
             const params = new URLSearchParams({
-                tripDetails: tripDetailsEncoded,
+                // Let URLSearchParams encode this once.
+                tripDetails: tripDetailsString,
                 flightType: 'ROUND',
                 numberOfAdult: '1',
                 numberOfChildren: '0',
@@ -490,10 +537,12 @@
                 directFlight: 'true',
                 refundable: 'false',
                 isDayFlight: 'true',
-                prefferedAirlineCodes: encodeURIComponent(JSON.stringify([])),
+                // The example shows this is also a JSON string, which URLSearchParams will encode.
+                prefferedAirlineCodes: JSON.stringify([]),
                 departureCity: origin.city,
                 arrivalCity: destination.city
             });
+
             // Example searchId (simulate)
             const searchId = Math.random().toString(36).substring(2, 14);
             return `https://travelbeta.com/search/${searchId}?${params.toString()}`;
@@ -514,6 +563,7 @@
         }
 
     </script>
-    
+
 </body>
+
 </html>
