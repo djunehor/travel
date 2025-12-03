@@ -267,8 +267,23 @@ export function getCountryByIata(db, iata) {
     );
 
     if (result.length && result[0].values.length) {
-        const [id, country_id, iata, airport_name, city, region, iso2, name, continent, sub_continent] = result[0].values[0];
-        return { id, country_id, iata, airport_name, city, region, iso2, name, continent, sub_continent };
+        const [id, country_id, iata, airport_name, city, region, iso2, name, continent, sub_continent, country_latitude, country_longitude, airport_latitude, airport_longitude] = result[0].values[0];
+        return {
+            id,
+            country_id,
+            iata,
+            airport_name,
+            city,
+            region,
+            iso2,
+            name,
+            continent,
+            sub_continent,
+            country_latitude,
+            country_longitude,
+            airport_latitude,
+            airport_longitude
+        };
     }
 
     return null;
