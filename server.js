@@ -344,6 +344,167 @@ app.get('/api/rates', async (_, res) => {
     }
 });
 
+// API: Get visa requirements for a specific destination
+app.post('/api/visa-requirements', async (req, res) => {
+    try {
+        const { nationality, residence, visas, destination } = req.body;
+
+        // Validate required fields
+        if (!nationality || !destination) {
+            return res.status(400).json({ 
+                error: 'Missing required fields: nationality and destination are mandatory.' 
+            });
+        }
+
+        // Create cache key
+        const cacheKey = `visa_req:${JSON.stringify({ nationality, residence, visas: visas || [], destination })}`;
+        
+        // Check cache
+        const cachedResult = await redisClient.get(cacheKey);
+        if (cachedResult) {
+            console.log(`[CACHE HIT] Visa requirements for ${destination}`);
+            return res.json(JSON.parse(cachedResult));
+        }
+
+        console.log(`[CACHE MISS] Calculating visa requirements for ${destination}`);
+
+        // Get country IDs
+        const nationalityResult = db.exec(
+            `SELECT id FROM countries WHERE UPPER(iso2) = ? OR UPPER(name) = ?`,
+            [nationality.toUpperCase(), nationality.toUpperCase()]
+        );
+
+        const destinationResult = db.exec(
+            `SELECT id, name, iso2 FROM countries WHERE UPPER(iso2) = ? OR UPPER(name) = ?`,
+            [destination.toUpperCase(), destination.toUpperCase()]
+        );
+
+        if (!nationalityResult.length || !nationalityResult[0].values.length) {
+            return res.status(404).json({ error: `Nationality country not found: ${nationality}` });
+        }
+
+        if (!destinationResult.length || !destinationResult[0].values.length) {
+            return res.status(404).json({ error: `Destination country not found: ${destination}` });
+        }
+
+        const nationalityId = nationalityResult[0].values[0][0];
+        const [destinationId, destinationName, destinationCode] = destinationResult[0].values[0];
+
+        // Get base visa requirement based on nationality
+        const baseRequirementResult = db.exec(
+            `SELECT requirement FROM visa_requirements 
+             WHERE origin_country_id = ? AND destination_country_id = ?`,
+            [nationalityId, destinationId]
+        );
+
+        let baseRequirement = 'visa required'; // default
+        if (baseRequirementResult.length && baseRequirementResult[0].values.length) {
+            baseRequirement = baseRequirementResult[0].values[0][0];
+        }
+
+        // Prepare held policies (residence + visas)
+        const heldPolicies = [];
+        
+        // Add residence permit if provided
+        if (residence) {
+            const residenceResult = db.exec(
+                `SELECT iso2 FROM countries WHERE UPPER(iso2) = ? OR UPPER(name) = ?`,
+                [residence.toUpperCase(), residence.toUpperCase()]
+            );
+            
+            if (residenceResult.length && residenceResult[0].values.length) {
+                const residenceCode = residenceResult[0].values[0][0];
+                heldPolicies.push(`${residenceCode.toUpperCase()}_RESIDENCE_PERMIT`);
+            }
+        }
+
+        // Add held visas
+        if (visas && Array.isArray(visas) && visas.length > 0) {
+            heldPolicies.push(...visas.map(v => v.toUpperCase()));
+        }
+
+        // Check for conditional policies that may improve the requirement
+        const conditionalRequirements = [];
+        
+        for (const policy of heldPolicies) {
+            const policyResult = db.exec(
+                `SELECT resulting_requirement, condition_value, notes 
+                 FROM destination_visa_policies 
+                 WHERE destination_country_id = ? AND condition_value = ?`,
+                [destinationId, policy]
+            );
+
+            if (policyResult.length && policyResult[0].values.length) {
+                for (const [resultingReq, conditionValue, notes] of policyResult[0].values) {
+                    conditionalRequirements.push({
+                        condition: conditionValue,
+                        requirement: resultingReq,
+                        notes: notes || null
+                    });
+                }
+            }
+        }
+
+        // Determine the best (most lenient) requirement
+        const requirementRanking = {
+            'visa free': 1,
+            'visa on arrival': 2,
+            'eta': 3,
+            'e-visa': 4,
+            'visa required': 5
+        };
+
+        const normalizeRequirement = (req) => {
+            const normalized = req.toLowerCase().trim();
+            if (normalized.includes('visa free') || normalized.includes('visa-free')) return 'visa free';
+            if (normalized.includes('visa on arrival') || normalized.includes('voa')) return 'visa on arrival';
+            if (normalized.includes('eta') || normalized.includes('e-ta')) return 'eta';
+            if (normalized.includes('e-visa') || normalized.includes('evisa')) return 'e-visa';
+            return 'visa required';
+        };
+
+        let finalRequirement = normalizeRequirement(baseRequirement);
+        let appliedCondition = null;
+        let notes = null;
+
+        // Check if any conditional requirement is better
+        for (const conditional of conditionalRequirements) {
+            const normalizedConditional = normalizeRequirement(conditional.requirement);
+            if (requirementRanking[normalizedConditional] < requirementRanking[finalRequirement]) {
+                finalRequirement = normalizedConditional;
+                appliedCondition = conditional.condition;
+                notes = conditional.notes;
+            }
+        }
+
+        const response = {
+            destination: {
+                name: destinationName,
+                code: destinationCode,
+                emoji: getFlagEmoji(destinationCode)
+            },
+            nationality,
+            residence: residence || null,
+            visas: visas || [],
+            visaRequirement: {
+                requirement: finalRequirement,
+                baseRequirement: normalizeRequirement(baseRequirement),
+                appliedCondition,
+                notes,
+                conditionalRequirements: conditionalRequirements.length > 0 ? conditionalRequirements : null
+            }
+        };
+
+        // Cache the result
+        await redisClient.set(cacheKey, JSON.stringify(response), 'EX', CACHE_TTL);
+        
+        res.json(response);
+    } catch (err) {
+        console.error('Error fetching visa requirements:', err);
+        res.status(500).json({ error: 'Failed to fetch visa requirements' });
+    }
+});
+
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 

@@ -72,7 +72,138 @@ async function importDestinationPolicies() {
             result: 'visa-free',
             notes: 'Valid residence permit from the Schengen Area.'
         },
-        // ... (All other policies: AL, TR, PA, RS, ME, GE, etc.)
+
+        // UK Visa Policies - Countries that allow visa-free entry for UK visa holders
+        {
+            destination: 'AL', // Albania
+            type: 'held_visa',
+            value: 'UK',
+            result: 'visa-free',
+            notes: 'Valid UK visa allows visa-free entry to Albania.'
+        },
+        {
+            destination: 'BA', // Bosnia and Herzegovina
+            type: 'held_visa',
+            value: 'UK',
+            result: 'visa-free',
+            notes: 'Valid UK visa allows visa-free entry to Bosnia and Herzegovina.'
+        },
+        {
+            destination: 'ME', // Montenegro
+            type: 'held_visa',
+            value: 'UK',
+            result: 'visa-free',
+            notes: 'Valid UK visa allows visa-free entry to Montenegro.'
+        },
+        {
+            destination: 'RS', // Serbia
+            type: 'held_visa',
+            value: 'UK',
+            result: 'visa-free',
+            notes: 'Valid UK visa allows visa-free entry to Serbia.'
+        },
+        {
+            destination: 'GE', // Georgia
+            type: 'held_visa',
+            value: 'UK',
+            result: 'visa-free',
+            notes: 'Valid UK visa allows visa-free entry to Georgia.'
+        },
+
+        // US Visa Policies - Countries that allow visa-free entry for US visa holders
+        {
+            destination: 'AL', // Albania
+            type: 'held_visa',
+            value: 'US',
+            result: 'visa-free',
+            notes: 'Valid US visa allows visa-free entry to Albania.'
+        },
+        {
+            destination: 'ME', // Montenegro
+            type: 'held_visa',
+            value: 'US',
+            result: 'visa-free',
+            notes: 'Valid US visa allows visa-free entry to Montenegro.'
+        },
+        {
+            destination: 'RS', // Serbia
+            type: 'held_visa',
+            value: 'US',
+            result: 'visa-free',
+            notes: 'Valid US visa allows visa-free entry to Serbia.'
+        },
+        {
+            destination: 'GE', // Georgia
+            type: 'held_visa',
+            value: 'US',
+            result: 'visa-free',
+            notes: 'Valid US visa allows visa-free entry to Georgia.'
+        },
+        {
+            destination: 'MX', // Mexico
+            type: 'held_visa',
+            value: 'US',
+            result: 'visa-free',
+            notes: 'Valid US visa allows visa-free entry to Mexico.'
+        },
+
+        // Schengen Visa Policies - Countries that allow visa-free entry for Schengen visa holders
+        {
+            destination: 'AL', // Albania
+            type: 'held_visa',
+            value: 'SCHENGEN',
+            result: 'visa-free',
+            notes: 'Valid Schengen visa allows visa-free entry to Albania.'
+        },
+        {
+            destination: 'BA', // Bosnia and Herzegovina
+            type: 'held_visa',
+            value: 'SCHENGEN',
+            result: 'visa-free',
+            notes: 'Valid Schengen visa allows visa-free entry to Bosnia and Herzegovina.'
+        },
+        {
+            destination: 'ME', // Montenegro
+            type: 'held_visa',
+            value: 'SCHENGEN',
+            result: 'visa-free',
+            notes: 'Valid Schengen visa allows visa-free entry to Montenegro.'
+        },
+        {
+            destination: 'RS', // Serbia
+            type: 'held_visa',
+            value: 'SCHENGEN',
+            result: 'visa-free',
+            notes: 'Valid Schengen visa allows visa-free entry to Serbia.'
+        },
+        {
+            destination: 'GE', // Georgia
+            type: 'held_visa',
+            value: 'SCHENGEN',
+            result: 'visa-free',
+            notes: 'Valid Schengen visa allows visa-free entry to Georgia.'
+        },
+        {
+            destination: 'MX', // Mexico
+            type: 'held_visa',
+            value: 'SCHENGEN',
+            result: 'visa-free',
+            notes: 'Valid Schengen visa allows visa-free entry to Mexico.'
+        },
+        {
+            destination: 'TR', // Turkey
+            type: 'held_visa',
+            value: 'SCHENGEN',
+            result: 'e-visa',
+            notes: 'Valid Schengen visa allows e-visa for Turkey.'
+        },
+        {
+            destination: 'PA', // Panama
+            type: 'held_visa',
+            value: 'SCHENGEN',
+            result: 'visa-free',
+            notes: 'Valid Schengen visa allows visa-free entry to Panama.'
+        }
     ];
 
     // --- Data Insertion ---

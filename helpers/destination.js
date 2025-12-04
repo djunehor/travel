@@ -103,7 +103,13 @@ export function getVisaEligibilityForTraveler(db, traveler, visaPreference) {
     // b) Add other Held Visas (Priority 2)
     if (traveler.visas && traveler.visas.length > 0) {
         for (const visa of traveler.visas) {
-            const visaPolicyValue = visa.toUpperCase();
+            let visaPolicyValue = visa.toUpperCase();
+            
+            // Normalize Schengen country visas to 'SCHENGEN'
+            if (isSchengenCountry(visa)) {
+                visaPolicyValue = 'SCHENGEN';
+            }
+            
             if (!heldPolicies.includes(visaPolicyValue)) {
                 heldPolicies.push(visaPolicyValue);
                 console.log(`[DEBUG] Added Held Visa Policy: ${visaPolicyValue}`);
