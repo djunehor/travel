@@ -344,7 +344,6 @@ app.get('/api/rates', async (_, res) => {
     }
 });
 
-// API: Get visa requirements for a specific destination
 app.post('/api/visa-requirements', async (req, res) => {
     try {
         const { nationality, residence, visas, destination } = req.body;
