@@ -140,7 +140,7 @@ export async function scrapeFlightAccommodation(origin, destination, checkInStr,
 
                 allData.push({
                     url: propertyElement.querySelector('a')?.href || null,
-                    img: propertyElement.querySelector('img')?.src || null,
+                    img: propertyElement.querySelector('img[srcset]')?.src || null,
                     name: propertyElement.querySelector('a[data-testid="details"] > div > div')?.textContent.trim() || null,
                     rating: rating ? parseFloat(Number(rating)).toFixed(1) : null,
                     approval: approval || null,
