@@ -2,8 +2,8 @@
 node_modules/
 screenshots/*
 html/*
-client
 package-lock.json
+client
 
 # Environment variables
 .env
