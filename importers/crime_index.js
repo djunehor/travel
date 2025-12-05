@@ -4,6 +4,7 @@ puppeteer.use(StealthPlugin());
 import AdblockerPlugin from 'puppeteer-extra-plugin-adblocker';
 puppeteer.use(AdblockerPlugin({ blockTrackers: true }));
 import fs from 'fs';
+import { initDatabase, saveDatabase } from '../helpers/database.js';
 
 async function launchBrowser() {
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
@@ -13,7 +14,62 @@ async function launchBrowser() {
 
 const url = 'https://www.numbeo.com/crime/rankings_by_country.jsp';
 
+async function insertCrimeIndexData(jsonPath) {
+    const db = await initDatabase();
+    db.run('DROP TABLE IF EXISTS crime_index');
+    db.run(`
+        CREATE TABLE crime_index (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            country_id INTEGER NOT NULL,
+            crime_index REAL,
+            normalized_crime_index REAL,
+            FOREIGN KEY (country_id) REFERENCES countries(id) ON DELETE CASCADE
+        )
+    `);
+
+    const data = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+    // Find min and max crime index
+    const crimeIndices = data.map(entry => parseFloat(entry['Crime Index'] || entry['crime_index'] || entry['score'])).filter(v => !isNaN(v));
+    const minCrime = Math.min(...crimeIndices);
+    const maxCrime = Math.max(...crimeIndices);
+
+    const countryStmt = db.prepare('SELECT id FROM countries WHERE name LIKE ?');
+    const insertStmt = db.prepare('INSERT INTO crime_index (country_id, crime_index, normalized_crime_index) VALUES (?, ?, ?)');
+
+    let inserted = 0;
+    for (const entry of data) {
+        const countryName = entry['Country'] || entry['country'] || entry[Object.keys(entry)[0]];
+        const originalCrimeIndex = parseFloat(entry['Crime Index'] || entry['crime_index'] || entry['score']);
+        let normalizedCrimeIndex = null;
+        if (!isNaN(originalCrimeIndex) && maxCrime > minCrime) {
+            normalizedCrimeIndex = ((originalCrimeIndex - minCrime) / (maxCrime - minCrime)) * 100;
+        }
+        countryStmt.bind([countryName]);
+        let countryId = null;
+        while (countryStmt.step()) {
+            countryId = countryStmt.get()[0];
+        }
+        countryStmt.reset();
+        if (countryId && !isNaN(originalCrimeIndex) && normalizedCrimeIndex !== null) {
+            insertStmt.run([countryId, originalCrimeIndex, normalizedCrimeIndex]);
+            inserted++;
+        } else {
+            console.warn(`Country not found or invalid crime index: ${countryName}`);
+        }
+    }
+    insertStmt.free();
+    countryStmt.free();
+    saveDatabase(db);
+    console.log(`Inserted ${inserted} crime_index records.`);
+}
+
 async function extractSecondTableToJson() {
+    const jsonPath = 'crime_index_table.json';
+    if (fs.existsSync(jsonPath)) {
+        console.log(`${jsonPath} already exists. Skipping scrape.`);
+        await insertCrimeIndexData(jsonPath);
+        return;
+    }
     const l = await launchBrowser();
     const browser = l.browser;
     const page = l.page;
@@ -47,8 +103,9 @@ async function extractSecondTableToJson() {
     });
 
     if (tableData) {
-        fs.writeFileSync('crime_index_table.json', JSON.stringify(tableData, null, 2), 'utf-8');
+        fs.writeFileSync(jsonPath, JSON.stringify(tableData, null, 2), 'utf-8');
         console.log('Second table extracted and saved to crime_index_table.json');
+        await insertCrimeIndexData(jsonPath);
     } else {
         console.log('Could not find the second table on the page.');
     }

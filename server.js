@@ -232,7 +232,8 @@ app.get('/api/airports', async (_, res) => {
         
         console.log('[CACHE MISS] airports');
         const result = db.exec(
-            `SELECT a.iata, a.name as airport, a.region as region_name, c.iso2 as country_code
+            `SELECT a.iata, a.name as airport, a.region as region_name,
+             c.iso2 as country_code, c.name as country_name
              FROM airports a
              JOIN countries c ON a.country_id = c.id
              ORDER BY a.id`
@@ -242,11 +243,12 @@ app.get('/api/airports', async (_, res) => {
             return res.json([]);
         }
         
-        const airports = result[0].values.map(([iata, airport, region_name, country_code]) => ({
+        const airports = result[0].values.map(([iata, airport, region_name, country_code, country_name]) => ({
             iata,
             airport,
             region_name,
-            country_code
+            country_code,
+            country_name
         }));
         
         // Cache in Redis with TTL
@@ -280,14 +282,17 @@ app.get('/api/countries', async (_, res) => {
         
         console.log('[CACHE MISS] countries');
         const result = db.exec(
-            `SELECT id, name, iso2, capital, region, subregion, languageCode, currencyCode FROM countries ORDER BY name`
+            `SELECT c.id, c.name, c.iso2, c.capital, c.region, c.subregion, c.languageCode, c.currencyCode, cl.cost_index, cl.normalized_cost_index
+             FROM countries c
+             LEFT JOIN cost_of_living cl ON cl.country_id = c.id
+             ORDER BY c.name`
         );
-        
+
         if (!result.length || !result[0].values.length) {
             return res.json([]);
         }
-        
-        const countries = result[0].values.map(([id, name, iso2, capital, region, subregion, languageCode, currencyCode]) => ({
+
+        const countries = result[0].values.map(([id, name, iso2, capital, region, subregion, languageCode, currencyCode, costIndex, normalizedCostIndex]) => ({
             id,
             name,
             code: iso2,
@@ -296,6 +301,8 @@ app.get('/api/countries', async (_, res) => {
             subregion,
             languageCode,
             currencyCode,
+            costIndex,
+            normalizedCostIndex,
             emoji: getFlagEmoji(iso2)
         }));
         

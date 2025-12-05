@@ -233,6 +233,17 @@ export async function processTask(db, taskId, requestData) {
                         departureDate: departureDate.toISOString().split('T')[0],
                         returnDate: returnDate.toISOString().split('T')[0],
                     },
+                    accommodationDetails: {
+                        name: flightPlusAccommodation.name,
+                        address: flightPlusAccommodation.address,
+                        rating: flightPlusAccommodation.rating,
+                        reviews: flightPlusAccommodation.reviews,
+                        price: flightPlusAccommodation.price,
+                        pricePerNight: flightPlusAccommodation.pricePerNight,
+                        perks: flightPlusAccommodation.perks,
+                        url: flightPlusAccommodation.url,
+                        currency: flightPlusAccommodation.priceCurrency
+                    },  
                     accommodationSuggestion: `<a href="${flightPlusAccommodation.url}" target="_blank">${flightPlusAccommodation.name}</a><br>${flightPlusAccommodation.address}<br>Rating: ${flightPlusAccommodation.rating} (${flightPlusAccommodation.reviews} reviews)<br>Price: ${flightPlusAccommodation.price} (${flightPlusAccommodation.pricePerNight} per night)<br>Perks: ${flightPlusAccommodation.perks || ''}<br><a href="${flightPlusAccommodation.url}" target="_blank">View on Booking.com</a>`,
                     topActivities: activitiesData.activities,
                     timeline: {

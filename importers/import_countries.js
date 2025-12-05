@@ -59,9 +59,11 @@ flag TEXT, -- emoji flag
 
     for (const country of countries) {
         try {
+            // Remove diacritics and special marks from country name
+            let name = country.name.common.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z ]/g, '');
             db.run(
                 `INSERT INTO countries (name, iso2, iso3, tld, capital, region, subregion, currencyCode, languageCode, latitude, longitude, area, flag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [country.name.common, country.cca2, country.cca3, country.tld[0], country.capital[0] || null, country.region, country.subregion || null, Object.keys(country.currencies)[0] || null, Object.keys(country.languages)[0] || null, country.latlng[0], country.latlng[1], country.area, country.flag]
+                [name, country.cca2, country.cca3, country.tld[0], country.capital[0] || null, country.region, country.subregion || null, Object.keys(country.currencies)[0] || null, Object.keys(country.languages)[0] || null, country.latlng[0], country.latlng[1], country.area, country.flag]
             );
         } catch (e) {
             console.error('Error inserting country:', country, e);

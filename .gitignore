@@ -2,6 +2,7 @@
 node_modules/
 screenshots/*
 html/*
+client
 package-lock.json
 
 # Environment variables
@@ -14,6 +15,7 @@ package-lock.json
 # Logs
 *.log
 npm-debug.log*
+
 
 # OS files
 .DS_Store

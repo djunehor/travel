@@ -8,7 +8,7 @@
     "dev": "node server.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "Zacchaeus Bolaji <djunehor@gmail.com>",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
