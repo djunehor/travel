@@ -10,7 +10,7 @@ dotenv.config({ quiet: true });
 const app = express();
 
 // Middleware
-app.use(cors({ origin: /\.usearlo\.to$/ })); // allow access from *.usearlo.to
+app.use(cors({ origin: '*' })); // allow access from all origins
 app.use(json());
 
 const PORT = process.env.PORT || 3000;
