@@ -10,7 +10,7 @@ dotenv.config({ quiet: true });
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({ origin: /\.usearlo\.to$/ })); // allow access from *.usearlo.to
 app.use(json());
 
 const PORT = process.env.PORT || 3000;
@@ -20,7 +20,7 @@ const redisClient = getRedisClient();
 let db;
 
 // API: Create task
-app.post('/api/plan-vacation', async (req, res) => {
+app.post('/plan-vacation', async (req, res) => {
     try {
         const requestData = req.body || {};
         // validate
@@ -53,7 +53,7 @@ app.post('/api/plan-vacation', async (req, res) => {
     }
 });
 
-app.post('/api/check-travel', async (req, res) => {
+app.post('/check-travel', async (req, res) => {
     try {
         const redisClient = getRedisClient();
         const requestData = req.body || {};
@@ -131,7 +131,7 @@ app.post('/api/check-travel', async (req, res) => {
 });
 
 // API: Get task
-app.get('/api/task/:taskId', async (req, res) => {
+app.get('/task/:taskId', async (req, res) => {
     try {
         const { taskId } = req.params;
         const { timestamp } = req.query;
@@ -183,7 +183,7 @@ app.get('/api/task/:taskId', async (req, res) => {
 });
 
 // API: Cancel task
-app.post('/api/task/:taskId/cancel', async (req, res) => {
+app.post('/task/:taskId/cancel', async (req, res) => {
     try {
         const { taskId } = req.params;
 
@@ -216,7 +216,7 @@ app.post('/api/task/:taskId/cancel', async (req, res) => {
 });
 
 // Get all airports
-app.get('/api/airports', async (_, res) => {
+app.get('/airports', async (_, res) => {
     try {
         const cacheKey = 'airports:all';
         
@@ -266,7 +266,7 @@ app.get('/api/airports', async (_, res) => {
 });
 
 // Get all countries
-app.get('/api/countries', async (_, res) => {
+app.get('/countries', async (_, res) => {
     try {
         const cacheKey = 'countries:all';
         
@@ -320,7 +320,7 @@ app.get('/api/countries', async (_, res) => {
     }
 });
 
-app.get('/api/rates', async (_, res) => {
+app.get('/rates', async (_, res) => {
     try {
         const cacheKey = 'rates:currency';
         
@@ -351,7 +351,7 @@ app.get('/api/rates', async (_, res) => {
     }
 });
 
-app.post('/api/visa-requirements', async (req, res) => {
+app.post('/visa-requirements', async (req, res) => {
     try {
         const { nationality, residence, visas, destination } = req.body;
 
