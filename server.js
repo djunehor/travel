@@ -218,7 +218,7 @@ app.post('/task/:taskId/cancel', async (req, res) => {
 // Get all airports
 app.get('/airports', async (_, res) => {
     try {
-        const cacheKey = 'airports:all';
+        const cacheKey = 'airports:v2';
         
         // Check Redis cache
         const cachedData = await redisClient.get(cacheKey);
@@ -233,6 +233,7 @@ app.get('/airports', async (_, res) => {
         console.log('[CACHE MISS] airports');
         const result = db.exec(
             `SELECT a.iata, a.name as airport, a.region as region_name,
+             a.city as city_name,
              c.iso2 as country_code, c.name as country_name
              FROM airports a
              JOIN countries c ON a.country_id = c.id
@@ -243,10 +244,11 @@ app.get('/airports', async (_, res) => {
             return res.json([]);
         }
         
-        const airports = result[0].values.map(([iata, airport, region_name, country_code, country_name]) => ({
+        const airports = result[0].values.map(([iata, airport, region_name, city_name, country_code, country_name]) => ({
             iata,
             airport,
             region_name,
+            city_name,
             country_code,
             country_name
         }));
