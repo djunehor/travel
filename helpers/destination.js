@@ -500,7 +500,7 @@ export function getEligibleDestinations(db, requestData) {
     }
 
     // sort randomly
-    destinations.sort(() => Math.random() - 0.5);
+    // destinations.sort(() => Math.random() - 0.5);
 
     console.log(`Returning ${destinations.length} destinations for scraping`);
     return destinations;
