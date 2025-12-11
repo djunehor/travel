@@ -4,13 +4,30 @@ import { getRedisClient } from './helpers/redis.js';
 import { initDatabase, setupDabatase, saveDatabase } from './helpers/database.js';
 import { generateTaskId, processTask, updateTaskStatus, cancelTask } from './helpers/task.js';
 import { getEligibleDestinations, getFlagEmoji, fetchCurrencyRates } from './helpers/destination.js'
+import { enqueueTask, getQueueStatus, getTaskQueuePosition, removeTaskFromQueue, initializeQueue } from './helpers/queue.js';
 import * as dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 
 const app = express();
 
 // Middleware
-app.use(cors({ origin: '*' })); // allow access from all origins
+// Restrict CORS to the production UI domain `usearlo.to` while allowing
+// non-browser requests that have no Origin header (curl, server-to-server).
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (e.g., curl, mobile apps, server-side)
+        if (!origin) return callback(null, true);
+
+        const allowed = [
+            'https://usearlo.to',
+            'https://www.usearlo.to'
+        ];
+
+        if (allowed.includes(origin)) return callback(null, true);
+
+        return callback(new Error('Not allowed by CORS'));
+    }
+}));
 app.use(json());
 
 const PORT = process.env.PORT || 3000;
@@ -38,15 +55,21 @@ app.post('/plan-vacation', async (req, res) => {
 
         console.time(taskId)
 
-        setTimeout(() => cancelTask(db, taskId), 15 * 60 * 1000);
-        processTask(db, taskId, requestData)
-            .then(() => console.timeEnd(taskId))
-            .catch(err => {
+        // Enqueue the task with automatic timeout
+        const queueInfo = await enqueueTask(taskId, async () => {
+            try {
+                await Promise.race([
+                    processTask(db, taskId, requestData),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Task timeout')), 15 * 60 * 1000))
+                ]);
+                console.timeEnd(taskId);
+            } catch (err) {
                 console.error(`Error processing task ${taskId}:`, err);
                 updateTaskStatus(db, taskId, 'failed', null, err.message);
-            });
+            }
+        });
 
-        res.json({ taskId, status: 'pending' });
+        res.json({ taskId, status: 'queued', queuePosition: queueInfo.position, totalQueued: queueInfo.totalQueued });
     } catch (err) {
         console.error('Error creating task:', err);
         res.status(500).json({ error: 'Failed to create task' });
@@ -201,6 +224,9 @@ app.post('/task/:taskId/cancel', async (req, res) => {
         const now = Date.now();
         db.run(`UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`, ['cancelled', now, taskId]);
         saveDatabase(db);
+
+        // Try to remove from queue if not yet started
+        await removeTaskFromQueue(taskId);
 
         // Optional: set a Redis flag so the running process can stop early
         const redisClient = getRedisClient();
@@ -516,9 +542,37 @@ app.post('/visa-requirements', async (req, res) => {
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
+// Queue status endpoints
+app.get('/queue/status', async (_, res) => {
+    try {
+        const status = await getQueueStatus();
+        res.json(status);
+    } catch (err) {
+        console.error('Error fetching queue status:', err);
+        res.status(500).json({ error: 'Failed to get queue status' });
+    }
+});
+
+app.get('/task/:taskId/queue-position', async (req, res) => {
+    try {
+        const { taskId } = req.params;
+        const position = await getTaskQueuePosition(taskId);
+        
+        if (!position) {
+            return res.status(404).json({ error: 'Task not found in queue' });
+        }
+        
+        res.json({ taskId, ...position });
+    } catch (err) {
+        console.error('Error fetching queue position:', err);
+        res.status(500).json({ error: 'Failed to get queue position' });
+    }
+});
+
 initDatabase().then((_) => {
     db = _;
     setupDabatase(db);
+    initializeQueue();
     console.log(new Date().toLocaleString(), '✅ Database initialized successfully')
     app.listen(PORT, () => console.log(new Date().toLocaleString(), `Server running on port ${PORT}`));
 }).catch(err => {

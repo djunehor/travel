@@ -1,0 +1,332 @@
+openapi: 3.0.3
+info:
+  title: Travel Planner API
+  version: 1.0.0
+  description: |
+    API for the Travel Planner service. This OpenAPI spec is a snapshot of the server
+    endpoints and request/response shapes. Use this file to drive UI generation or
+    to pass to LLMs for building integrations.
+servers:
+  - url: http://localhost:3000
+paths:
+  /plan-vacation:
+    post:
+      summary: Create a vacation planning task (queued)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanVacationRequest'
+      responses:
+        '200':
+          description: Task accepted and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskQueuedResponse'
+        '400':
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /check-travel:
+    post:
+      summary: Quickly check visa eligibility / get destinations (cached)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckTravelRequest'
+      responses:
+        '200':
+          description: Destinations matching visa eligibility
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DestinationSummary'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /task/{taskId}:
+    get:
+      summary: Get task status and logs
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: timestamp
+          in: query
+          required: false
+          schema:
+            type: integer
+            description: Only return logs after this timestamp
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetailResponse'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /task/{taskId}/cancel:
+    post:
+      summary: Cancel a task (queued or running)
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Task cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  taskId:
+                    type: string
+                  status:
+                    type: string
+        '400':
+          description: Cannot cancel task (already completed/failed/cancelled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /task/{taskId}/queue-position:
+    get:
+      summary: Get queue position for a task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Queue position information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  taskId:
+                    type: string
+                  isQueued:
+                    type: boolean
+                  isActive:
+                    type: boolean
+                  position:
+                    type: integer
+                  totalQueued:
+                    type: integer
+        '404':
+          description: Task not found in queue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /queue/status:
+    get:
+      summary: Get queue status
+      responses:
+        '200':
+          description: Queue status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStatus'
+  /airports:
+    get:
+      summary: List airports
+      responses:
+        '200':
+          description: List of airports
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    iata:
+                      type: string
+                    airport:
+                      type: string
+                    city_name:
+                      type: string
+                    country_code:
+                      type: string
+                    country_name:
+                      type: string
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+components:
+  schemas:
+    Traveler:
+      type: object
+      required: [name, type, nationality, residence]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          description: 'adult | child'
+        nationality:
+          type: string
+          description: ISO2 country code or similar (e.g., 'NG')
+        residence:
+          type: string
+        visas:
+          type: array
+          items:
+            type: string
+    PlanVacationRequest:
+      type: object
+      required: [travelers, budget, timeframe, duration, departureCountry, visaPreference, travelStyles]
+      properties:
+        travelers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Traveler'
+        budget:
+          type: string
+        timeframe:
+          type: string
+        duration:
+          type: string
+        departureCountry:
+          type: string
+          description: Airport IATA code for departure (e.g., 'LOS')
+        visaPreference:
+          type: string
+          description: 'visa-free | visa-on-arrival | short-processing | any-processing | any'
+        travelStyles:
+          type: array
+          items:
+            type: string
+    CheckTravelRequest:
+      type: object
+      required: [nationality, residence, visaPreference]
+      properties:
+        nationality:
+          type: string
+        residence:
+          type: string
+        visas:
+          type: array
+          items:
+            type: string
+        visaPreference:
+          type: string
+    TaskQueuedResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+        status:
+          type: string
+          example: queued
+        queuePosition:
+          type: integer
+        totalQueued:
+          type: integer
+    TaskDetailResponse:
+      type: object
+      properties:
+        taskId:
+          type: string
+        status:
+          type: string
+        data:
+          type: object
+        error:
+          type: string
+        logs:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: string
+              timestamp:
+                type: integer
+    DestinationSummary:
+      type: object
+      properties:
+        name:
+          type: string
+        countryCode:
+          type: string
+        airportCode:
+          type: string
+        visaStatus:
+          type: string
+    QueueStatus:
+      type: object
+      properties:
+        activeCount:
+          type: integer
+        maxConcurrent:
+          type: integer
+        queuedCount:
+          type: integer
+        totalPending:
+          type: integer
+        queuedTasks:
+          type: array
+          items:
+            type: object
+            properties:
+              taskId:
+                type: string
+              position:
+                type: integer
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
