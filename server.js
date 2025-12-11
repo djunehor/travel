@@ -69,7 +69,14 @@ app.post('/plan-vacation', async (req, res) => {
             }
         });
 
-        res.json({ taskId, status: 'queued', queuePosition: queueInfo.position, totalQueued: queueInfo.totalQueued });
+        res.json({
+            taskId,
+            status: 'queued',
+            queued: true,
+            message: 'Your task has been queued and will start when a processing slot is available.',
+            queuePosition: queueInfo.position,
+            totalQueued: queueInfo.totalQueued
+        });
     } catch (err) {
         console.error('Error creating task:', err);
         res.status(500).json({ error: 'Failed to create task' });
@@ -197,6 +204,20 @@ app.get('/task/:taskId', async (req, res) => {
             }
         }
         response.logs = logs;
+
+        // Include queue info if available
+        try {
+            const position = await getTaskQueuePosition(taskId);
+            if (position) {
+                response.queued = Boolean(position.isQueued);
+                response.isActive = Boolean(position.isActive);
+                if (position.position) response.queuePosition = position.position;
+                if (position.totalQueued !== undefined) response.totalQueued = position.totalQueued;
+            }
+        } catch (err) {
+            // Non-fatal: don't block returning task info if queue lookup fails
+            console.warn('⚠️ Failed to fetch queue position:', err.message);
+        }
 
         res.json(response);
     } catch (err) {

@@ -274,6 +274,10 @@ components:
           type: integer
         totalQueued:
           type: integer
+        queued:
+          type: boolean
+        message:
+          type: string
     TaskDetailResponse:
       type: object
       properties:
@@ -281,10 +285,13 @@ components:
           type: string
         status:
           type: string
+          description: 'pending | queued | active | completed | failed | cancelled'
         data:
           type: object
+          description: Result data when status is completed
         error:
           type: string
+          description: Error message when status is failed
         logs:
           type: array
           items:
@@ -294,6 +301,18 @@ components:
                 type: string
               timestamp:
                 type: integer
+        queued:
+          type: boolean
+          description: True if task is waiting in queue
+        isActive:
+          type: boolean
+          description: True if task is currently processing
+        queuePosition:
+          type: integer
+          description: Position in queue (if queued)
+        totalQueued:
+          type: integer
+          description: Total number of tasks in queue
     DestinationSummary:
       type: object
       properties:
