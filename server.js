@@ -23,7 +23,17 @@ app.use(cors({
             'https://www.usearlo.to'
         ];
 
-        if (allowed.includes(origin)) return callback(null, true);
+        // Allow configured production UI domains, and also allow localhost/127.0.0.1
+        // on any port/scheme for local testing.
+        try {
+            const parsed = new URL(origin);
+            const hostname = parsed.hostname;
+            if (allowed.includes(origin) || hostname === 'localhost' || hostname === '127.0.0.1') {
+                return callback(null, true);
+            }
+        } catch (err) {
+            // If origin isn't a valid URL, fall through to deny
+        }
 
         return callback(new Error('Not allowed by CORS'));
     }
