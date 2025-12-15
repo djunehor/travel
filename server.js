@@ -573,6 +573,41 @@ app.post('/visa-requirements', async (req, res) => {
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
+// Feedback form handler
+app.post('/feedback', async (req, res) => {
+    try {
+        const { name, email, message } = req.body || {};
+
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        const createdAt = Date.now();
+
+        db.run(
+            `INSERT INTO feedback (name, email, message, created_at) VALUES (?, ?, ?, ?)`,
+            [name || null, email || null, message || null, createdAt]
+        );
+        saveDatabase(db);
+
+        // Cache recent feedback in Redis (keep latest 100)
+        try {
+            const item = { name: name || null, email: email || null, message: message || null, createdAt };
+            if (redisClient) {
+                await redisClient.lpush('feedback:recent', JSON.stringify(item));
+                await redisClient.ltrim('feedback:recent', 0, 99);
+            }
+        } catch (err) {
+            console.warn('Failed to cache feedback in Redis:', err.message);
+        }
+
+        res.status(201).json({ status: 'ok' });
+    } catch (err) {
+        console.error('Error saving feedback:', err);
+        res.status(500).json({ error: 'Failed to save feedback' });
+    }
+});
+
 // Queue status endpoints
 app.get('/queue/status', async (_, res) => {
     try {
@@ -597,6 +632,30 @@ app.get('/task/:taskId/queue-position', async (req, res) => {
     } catch (err) {
         console.error('Error fetching queue position:', err);
         res.status(500).json({ error: 'Failed to get queue position' });
+    }
+});
+
+// Get a random recently generated itinerary
+app.get('/itineraries/random', async (req, res) => {
+    try {
+        const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+        const since = req.query.since ? parseInt(req.query.since, 10) : (Date.now() - 1000 * 60 * 60 * 24 * 7); // default: last 7 days
+
+        const result = db.exec(
+            `SELECT id, result_data, updated_at FROM tasks WHERE status = ? AND result_data IS NOT NULL AND updated_at >= ? ORDER BY updated_at DESC LIMIT ?`,
+            ['completed', since, limit]
+        );
+
+        if (!result.length || !result[0].values.length) return res.status(404).json({ error: 'No itineraries found' });
+
+        const rows = result[0].values.map(([id, resultData, updated_at]) => ({ id, data: JSON.parse(resultData), updated_at }));
+
+        const randomItem = rows[Math.floor(Math.random() * rows.length)];
+
+        res.json({ taskId: randomItem.id, updatedAt: randomItem.updated_at, itinerary: randomItem.data });
+    } catch (err) {
+        console.error('Error fetching random itinerary:', err);
+        res.status(500).json({ error: 'Failed to fetch itinerary' });
     }
 });
 

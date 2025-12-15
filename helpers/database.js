@@ -44,6 +44,16 @@ export function setupDabatase(db) {
     `);
 
     db.run(`
+        CREATE TABLE IF NOT EXISTS feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            email TEXT,
+            message TEXT,
+            created_at INTEGER NOT NULL
+        )
+    `);
+
+    db.run(`
       CREATE TABLE IF NOT EXISTS countries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
