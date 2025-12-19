@@ -114,12 +114,12 @@ const schemas = {
         visaPreference: Joi.string().valid('visa-free', 'visa-on-arrival', 'required', 'any').required(),
         travelStyles: Joi.array().items(Joi.string().max(100)).min(1).max(10).required(),
         travelers: Joi.array().items(Joi.object({
-            name: Joi.string().max(100).allow(''),
-            type: Joi.string().valid('adult', 'child'),
-            nationality: Joi.string().length(2).uppercase(),
-            residence: Joi.string().length(2).uppercase(),
+            name: Joi.string().max(100).allow('').optional(),
+            type: Joi.string().valid('adult', 'child').required(),
+            nationality: Joi.string().length(2).uppercase().required(),
+            residence: Joi.string().length(2).uppercase().required(),
             visas: Joi.array().items(Joi.string().length(2).uppercase()).max(20).default([])
-        })).min(1).max(20).optional()
+        })).min(1).max(20).required()
     }),
     
     checkTravel: Joi.object({
