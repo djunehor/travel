@@ -34,21 +34,6 @@ export function setupDabatase(db) {
         )
     `);
 
-    // Migration: Add task_token column if it doesn't exist
-    try {
-        const result = db.exec("PRAGMA table_info(tasks)");
-        const columns = result[0]?.values || [];
-        const hasTaskToken = columns.some(col => col[1] === 'task_token');
-        
-        if (!hasTaskToken) {
-            console.log('📦 Migrating database: adding task_token column to tasks table');
-            db.run(`ALTER TABLE tasks ADD COLUMN task_token TEXT`);
-            console.log('✅ Migration complete');
-        }
-    } catch (err) {
-        console.warn('⚠️ Migration check failed:', err.message);
-    }
-
     db.run(`
         CREATE TABLE IF NOT EXISTS task_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
