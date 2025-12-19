@@ -51,4 +51,7 @@ async function normalizeVisaData() {
     console.log(`✅ Normalized ${updated} visa requirements`);
 }
 
-normalizeVisaData().catch(console.error);
+normalizeVisaData().catch((e) => {
+    console.error(e);
+    process.exit(1);
+});

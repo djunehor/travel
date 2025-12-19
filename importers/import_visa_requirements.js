@@ -84,4 +84,7 @@ async function importVisaRequirements() {
     console.log('Import complete!');
 }
 
-importVisaRequirements().catch(console.error)
+importVisaRequirements().catch((e) => {
+    console.error(e);
+    process.exit(1);
+});

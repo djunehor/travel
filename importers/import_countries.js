@@ -74,4 +74,7 @@ flag TEXT, -- emoji flag
     console.log(`Imported ${countries.length} countries`);
 }
 
-importCountries().catch((e) => console.error(e));
+importCountries().catch((e) => {
+    console.error(e);
+    process.exit(1);
+});

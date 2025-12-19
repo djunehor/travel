@@ -98,4 +98,7 @@ async function importAirports() {
     console.log(`Imported ${airportCodes.length} airports`);
 }
 
-importAirports().catch(console.error)
+importAirports().catch((e) => {
+    console.error(e);
+    process.exit(1);
+});

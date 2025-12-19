@@ -281,4 +281,7 @@ async function importDestinationPolicies() {
     console.log(`--- Database saved to ${dbPath} ---`);
 }
 
-importDestinationPolicies().catch(console.error);
+importDestinationPolicies().catch((e) => {
+    console.error(e);
+    process.exit(1);
+});
