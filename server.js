@@ -1,5 +1,6 @@
 import express, { json } from 'express';
 import cors from 'cors';
+import { WebSocketServer } from 'ws';
 import { getRedisClient } from './helpers/redis.js';
 import { initDatabase, setupDabatase, saveDatabase } from './helpers/database.js';
 import { generateTaskId, processTask, updateTaskStatus, cancelTask } from './helpers/task.js';
@@ -573,6 +574,75 @@ app.post('/visa-requirements', async (req, res) => {
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
+// Extract trip data from conversation transcript
+app.post('/extract-trip-data', async (req, res) => {
+    try {
+        const { transcriptHistory, extractionPrompt } = req.body;
+
+        if (!transcriptHistory || !Array.isArray(transcriptHistory) || transcriptHistory.length === 0) {
+            return res.status(400).json({ error: 'transcriptHistory is required and must be a non-empty array' });
+        }
+
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        if (!GEMINI_API_KEY) {
+            console.error('[Extract] Missing GEMINI_API_KEY in environment');
+            return res.status(500).json({ error: 'Server configuration error' });
+        }
+
+        const EXTRACTION_MODEL = 'gemini-2.0-flash';
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${EXTRACTION_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+        // Format transcript for the prompt
+        const formattedTranscript = transcriptHistory
+            .map(msg => `${msg.role.toUpperCase()}: ${msg.content}`)
+            .join('\n');
+
+        const payload = {
+            contents: [
+                {
+                    parts: [
+                        { text: extractionPrompt },
+                        { text: `\n\n**Conversation Transcript:**\n${formattedTranscript}` }
+                    ]
+                }
+            ],
+            generationConfig: {
+                response_mime_type: "application/json",
+                temperature: 0.1
+            }
+        };
+
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("[Extract] Gemini Extraction Error:", errorText);
+            return res.status(response.status).json({ error: `Extraction failed: ${response.status}` });
+        }
+
+        const data = await response.json();
+        const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+        if (!resultText) {
+            return res.status(500).json({ error: "No data returned from extraction model" });
+        }
+
+        // Parse JSON response
+        const extractedData = JSON.parse(resultText);
+        res.json(extractedData);
+
+    } catch (error) {
+        console.error("[Extract] Failed to extract trip data:", error);
+        res.status(500).json({ error: 'Failed to extract trip data', details: error.message });
+    }
+});
+
 // Feedback form handler
 app.post('/feedback', async (req, res) => {
     try {
@@ -664,7 +734,71 @@ initDatabase().then((_) => {
     setupDabatase(db);
     initializeQueue();
     console.log(new Date().toLocaleString(), '✅ Database initialized successfully')
-    app.listen(PORT, () => console.log(new Date().toLocaleString(), `Server running on port ${PORT}`));
+    
+    const server = app.listen(PORT, () => {
+        console.log(new Date().toLocaleString(), `Server running on port ${PORT}`);
+    });
+
+    // WebSocket server for Gemini Live API proxy
+    const wss = new WebSocketServer({ server, path: '/gemini-live' });
+    
+    wss.on('connection', (clientWs, req) => {
+        console.log('[Gemini Proxy] Client connected from', req.socket.remoteAddress);
+        
+        // Verify Gemini API key exists
+        if (!process.env.GEMINI_API_KEY) {
+            console.error('[Gemini Proxy] Missing GEMINI_API_KEY in environment');
+            clientWs.close(1008, 'Server configuration error');
+            return;
+        }
+
+        // Connect to Gemini API on behalf of client
+        const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${process.env.GEMINI_API_KEY}`;
+        const geminiWs = new WebSocket(geminiUrl);
+
+        geminiWs.on('open', () => {
+            console.log('[Gemini Proxy] Connected to Gemini API');
+        });
+
+        geminiWs.on('error', (error) => {
+            console.error('[Gemini Proxy] Gemini WebSocket error:', error.message);
+            clientWs.close(1011, 'Upstream service error');
+        });
+
+        geminiWs.on('close', () => {
+            console.log('[Gemini Proxy] Gemini connection closed');
+            if (clientWs.readyState === WebSocket.OPEN) {
+                clientWs.close(1000, 'Upstream closed');
+            }
+        });
+
+        geminiWs.on('message', (data) => {
+            // Relay Gemini response to client
+            if (clientWs.readyState === WebSocket.OPEN) {
+                clientWs.send(data);
+            }
+        });
+
+        // Relay client messages to Gemini
+        clientWs.on('message', (data) => {
+            if (geminiWs.readyState === WebSocket.OPEN) {
+                geminiWs.send(data);
+            }
+        });
+
+        clientWs.on('close', () => {
+            console.log('[Gemini Proxy] Client disconnected');
+            if (geminiWs.readyState === WebSocket.OPEN) {
+                geminiWs.close();
+            }
+        });
+
+        clientWs.on('error', (error) => {
+            console.error('[Gemini Proxy] Client WebSocket error:', error.message);
+        });
+    });
+
+    console.log(new Date().toLocaleString(), '✅ Gemini WebSocket proxy initialized on path /gemini-live');
 }).catch(err => {
     console.error('Failed to initialize database:', err);
     process.exit(1);
