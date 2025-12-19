@@ -16,6 +16,9 @@ dotenv.config({ quiet: true });
 const app = express();
 
 // Middleware
+// Trust proxy - required when behind nginx/reverse proxy for accurate IP tracking
+app.set('trust proxy', 1);
+
 // Security: Disable X-Powered-By header to prevent information disclosure
 app.disable('x-powered-by');
 
