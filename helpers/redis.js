@@ -5,7 +5,7 @@ let redis = null;
 
 export function getRedisClient() {
 
-    if (!redis && process.env.REDIS_URL) {
+if (!redis && process.env.REDIS_URL) {
         try {
             redis = new Redis(process.env.REDIS_URL, {
                 maxRetriesPerRequest: 3,

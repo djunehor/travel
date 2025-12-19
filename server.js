@@ -1,6 +1,10 @@
 import express, { json } from 'express';
 import cors from 'cors';
 import { WebSocketServer } from 'ws';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import Joi from 'joi';
+import crypto from 'crypto';
 import { getRedisClient } from './helpers/redis.js';
 import { initDatabase, setupDabatase, saveDatabase } from './helpers/database.js';
 import { generateTaskId, processTask, updateTaskStatus, cancelTask } from './helpers/task.js';
@@ -12,8 +16,47 @@ dotenv.config({ quiet: true });
 const app = express();
 
 // Middleware
+// Security: Disable X-Powered-By header to prevent information disclosure
+app.disable('x-powered-by');
+
+// Security: Apply Helmet.js for HTTP security headers
+app.use(helmet({
+    contentSecurityPolicy: false, // Configure CSP via nginx for better control
+    crossOriginEmbedderPolicy: false // Allow embedding resources from other origins
+}));
+
+// Security: Rate limiting to prevent abuse
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: { error: 'Too many requests, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const strictLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // 10 requests per hour
+    message: { error: 'Rate limit exceeded for this endpoint.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const wsLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5, // 5 new connections per hour per IP
+    message: { error: 'Too many WebSocket connection attempts.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Apply general API rate limiter to all routes
+app.use(apiLimiter);
+
 // Restrict CORS to the production UI domain `usearlo.to` while allowing
 // non-browser requests that have no Origin header (curl, server-to-server).
+const isDevelopment = process.env.NODE_ENV === 'development';
+
 app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (e.g., curl, mobile apps, server-side)
@@ -24,22 +67,105 @@ app.use(cors({
             'https://www.usearlo.to'
         ];
 
-        // Allow configured production UI domains, and also allow localhost/127.0.0.1
-        // on any port/scheme for local testing.
-        try {
-            const parsed = new URL(origin);
-            const hostname = parsed.hostname;
-            if (allowed.includes(origin) || hostname === 'localhost' || hostname === '127.0.0.1') {
-                return callback(null, true);
+        // Allow configured production UI domains
+        if (allowed.includes(origin)) {
+            return callback(null, true);
+        }
+
+        // Allow localhost/127.0.0.1 only in development with specific ports
+        if (isDevelopment) {
+            try {
+                const parsed = new URL(origin);
+                const hostname = parsed.hostname;
+                if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                    const port = parsed.port;
+                    const allowedPorts = ['5173', '3000', '4173', '8080']; // Vite dev, Express, Vite preview
+                    if (!port || allowedPorts.includes(port)) {
+                        return callback(null, true);
+                    }
+                }
+            } catch (err) {
+                // If origin isn't a valid URL, fall through to deny
             }
-        } catch (err) {
-            // If origin isn't a valid URL, fall through to deny
         }
 
         return callback(new Error('Not allowed by CORS'));
     }
 }));
-app.use(json());
+
+// Security: Request size limits to prevent DoS attacks
+app.use(json({ 
+    limit: '1mb',  // Limit request body size to 1MB
+    strict: true   // Only parse arrays and objects
+}));
+
+app.use(express.urlencoded({ 
+    extended: true, 
+    limit: '1mb' 
+}));
+
+// Validation schemas
+const schemas = {
+    planVacation: Joi.object({
+        budget: Joi.string().valid('under-500', '500-1000', '1000-2000', '2000-5000', 'over-5000').required(),
+        timeframe: Joi.string().valid('1-month', '3-month', '6-month', 'flexible').required(),
+        duration: Joi.string().valid('3-5-days', '1-week', '2-weeks', '3-weeks', '1-month', 'flexible').required(),
+        departureCountry: Joi.string().length(3).uppercase().required(),
+        visaPreference: Joi.string().valid('visa-free', 'visa-on-arrival', 'required', 'any').required(),
+        travelStyles: Joi.array().items(Joi.string().max(100)).min(1).max(10).required(),
+        travelers: Joi.array().items(Joi.object({
+            name: Joi.string().max(100).allow(''),
+            type: Joi.string().valid('adult', 'child'),
+            nationality: Joi.string().length(2).uppercase(),
+            residence: Joi.string().length(2).uppercase(),
+            visas: Joi.array().items(Joi.string().length(2).uppercase()).max(20).default([])
+        })).min(1).max(20).optional()
+    }),
+    
+    checkTravel: Joi.object({
+        nationality: Joi.string().length(2).uppercase().required(),
+        residence: Joi.string().length(2).uppercase().required(),
+        visas: Joi.array().items(Joi.string().length(2).uppercase()).max(20).optional(),
+        visaPreference: Joi.string().valid('visa-free', 'visa-on-arrival', 'required', 'any').required()
+    }),
+    
+    feedback: Joi.object({
+        name: Joi.string().max(200).allow(null, '').optional(),
+        email: Joi.string().email().max(320).required(),
+        message: Joi.string().max(5000).allow(null, '').optional()
+    }),
+    
+    extractTripData: Joi.object({
+        transcriptHistory: Joi.array().items(Joi.object({
+            role: Joi.string().valid('user', 'assistant', 'system').required(),
+            content: Joi.string().max(50000).required()
+        })).min(1).max(100).required(),
+        extractionPrompt: Joi.string().max(10000).required()
+    }),
+    
+    cancelTask: Joi.object({
+        taskToken: Joi.string().length(64).optional()
+    })
+};
+
+// Validation middleware
+const validate = (schema) => (req, res, next) => {
+    const { error, value } = schema.validate(req.body, { 
+        abortEarly: false,
+        stripUnknown: true 
+    });
+    
+    if (error) {
+        const errors = error.details.map(detail => detail.message);
+        return res.status(400).json({ 
+            error: 'Validation failed', 
+            details: isDevelopment ? errors : undefined
+        });
+    }
+    
+    req.body = value; // Use sanitized value
+    next();
+};
 
 const PORT = process.env.PORT || 3000;
 const CACHE_TTL = 86400 * 90; 
@@ -48,19 +174,16 @@ const redisClient = getRedisClient();
 let db;
 
 // API: Create task
-app.post('/plan-vacation', async (req, res) => {
+app.post('/plan-vacation', validate(schemas.planVacation), strictLimiter, async (req, res) => {
     try {
-        const requestData = req.body || {};
-        // validate
-        if (!requestData.budget || !requestData.timeframe || !requestData.duration || !requestData.departureCountry || !requestData.visaPreference || !requestData.travelStyles) {
-            return res.status(400).json({ error: 'Missing required fields in request data' });
-        }
+        const requestData = req.body;
         const taskId = generateTaskId();
+        const taskToken = crypto.randomBytes(32).toString('hex'); // Ownership token
         const now = Date.now();
 
         db.run(
-            `INSERT INTO tasks (id, status, request_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-            [taskId, 'pending', JSON.stringify(requestData), now, now]
+            `INSERT INTO tasks (id, status, request_data, task_token, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+            [taskId, 'pending', JSON.stringify(requestData), taskToken, now, now]
         );
         saveDatabase(db);
 
@@ -82,6 +205,7 @@ app.post('/plan-vacation', async (req, res) => {
 
         res.json({
             taskId,
+            taskToken, // Return token to client for ownership verification
             status: 'queued',
             queued: true,
             message: 'Your task has been queued and will start when a processing slot is available.',
@@ -94,16 +218,11 @@ app.post('/plan-vacation', async (req, res) => {
     }
 });
 
-app.post('/check-travel', async (req, res) => {
+app.post('/check-travel', validate(schemas.checkTravel), async (req, res) => {
     try {
         const redisClient = getRedisClient();
-        const requestData = req.body || {};
+        const requestData = req.body;
         const { nationality, residence, visas, visaPreference } = requestData;
-
-        // 1. Validate Input
-        if (!nationality || !residence || !visaPreference) {
-            return res.status(400).json({ error: 'Missing required fields: nationality, residence, and visaPreference are mandatory.' });
-        }
         
         // 2. Prepare Data and Generate Cache Key
         const singleTraveler = {
@@ -238,16 +357,22 @@ app.get('/task/:taskId', async (req, res) => {
 });
 
 // API: Cancel task
-app.post('/task/:taskId/cancel', async (req, res) => {
+app.post('/task/:taskId/cancel', validate(schemas.cancelTask), async (req, res) => {
     try {
         const { taskId } = req.params;
+        const { taskToken } = req.body;
 
-        const taskResult = db.exec(`SELECT status FROM tasks WHERE id = ?`, [taskId]);
+        const taskResult = db.exec(`SELECT status, task_token FROM tasks WHERE id = ?`, [taskId]);
         if (!taskResult.length || !taskResult[0].values.length) {
             return res.status(404).json({ error: 'Task not found' });
         }
 
-        const [status] = taskResult[0].values[0];
+        const [status, storedToken] = taskResult[0].values[0];
+        
+        // Verify ownership if token is provided (backward compatible)
+        if (taskToken && storedToken && taskToken !== storedToken) {
+            return res.status(403).json({ error: 'Forbidden: Invalid task token' });
+        }
         if (status === 'completed' || status === 'failed' || status === 'cancelled') {
             return res.status(400).json({ error: `Cannot cancel a task with status ${status}` });
         }
@@ -574,14 +699,37 @@ app.post('/visa-requirements', async (req, res) => {
 // Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
+// Centralized error handler (must be last middleware)
+app.use((err, req, res, next) => {
+    // Log full error server-side
+    console.error('Error:', {
+        message: err.message,
+        stack: err.stack,
+        path: req.path,
+        method: req.method,
+        ip: req.ip,
+        timestamp: new Date().toISOString()
+    });
+    
+    // Send sanitized error to client
+    const statusCode = err.statusCode || err.status || 500;
+    const message = isDevelopment ? err.message : 'An error occurred';
+    
+    // Don't send response if headers already sent
+    if (res.headersSent) {
+        return next(err);
+    }
+    
+    res.status(statusCode).json({
+        error: message,
+        ...(isDevelopment && { stack: err.stack })
+    });
+});
+
 // Extract trip data from conversation transcript
-app.post('/extract-trip-data', async (req, res) => {
+app.post('/extract-trip-data', validate(schemas.extractTripData), strictLimiter, async (req, res) => {
     try {
         const { transcriptHistory, extractionPrompt } = req.body;
-
-        if (!transcriptHistory || !Array.isArray(transcriptHistory) || transcriptHistory.length === 0) {
-            return res.status(400).json({ error: 'transcriptHistory is required and must be a non-empty array' });
-        }
 
         const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
         if (!GEMINI_API_KEY) {
@@ -644,13 +792,9 @@ app.post('/extract-trip-data', async (req, res) => {
 });
 
 // Feedback form handler
-app.post('/feedback', async (req, res) => {
+app.post('/feedback', validate(schemas.feedback), async (req, res) => {
     try {
-        const { name, email, message } = req.body || {};
-
-        if (!email) {
-            return res.status(400).json({ error: 'Email is required' });
-        }
+        const { name, email, message } = req.body;
 
         const createdAt = Date.now();
 
@@ -753,8 +897,13 @@ initDatabase().then((_) => {
         }
 
         // Connect to Gemini API on behalf of client
-        const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${process.env.GEMINI_API_KEY}`;
-        const geminiWs = new WebSocket(geminiUrl);
+        // Security: Use headers for API key instead of query params to prevent logging exposure
+        const geminiUrl = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent';
+        const geminiWs = new WebSocket(geminiUrl, {
+            headers: {
+                'x-goog-api-key': process.env.GEMINI_API_KEY
+            }
+        });
 
         geminiWs.on('open', () => {
             console.log('[Gemini Proxy] Connected to Gemini API');

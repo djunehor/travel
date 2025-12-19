@@ -28,6 +28,7 @@ export function setupDabatase(db) {
             request_data TEXT NOT NULL,
             result_data TEXT,
             error_message TEXT,
+            task_token TEXT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )
