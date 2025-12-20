@@ -140,7 +140,7 @@ const schemas = {
     
     extractTripData: Joi.object({
         transcriptHistory: Joi.array().items(Joi.object({
-            role: Joi.string().valid('user', 'assistant', 'system').required(),
+            role: Joi.string().valid('user', 'assistant', 'system', 'model').required(),
             content: Joi.string().max(50000).required()
         })).min(1).max(100).required(),
         extractionPrompt: Joi.string().max(10000).required()
