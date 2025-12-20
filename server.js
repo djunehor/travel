@@ -900,13 +900,9 @@ initDatabase().then((_) => {
         }
 
         // Connect to Gemini API on behalf of client
-        // Security: Use headers for API key instead of query params to prevent logging exposure
-        const geminiUrl = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent';
-        const geminiWs = new WebSocket(geminiUrl, {
-            headers: {
-                'x-goog-api-key': process.env.GEMINI_API_KEY
-            }
-        });
+        // API key must be passed as query parameter for WebSocket connections
+        const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${process.env.GEMINI_API_KEY}`;
+        const geminiWs = new WebSocket(geminiUrl);
 
         geminiWs.on('open', () => {
             console.log('[Gemini Proxy] Connected to Gemini API');
