@@ -141,9 +141,9 @@ const schemas = {
     extractTripData: Joi.object({
         transcriptHistory: Joi.array().items(Joi.object({
             role: Joi.string().valid('user', 'assistant', 'system', 'model').required(),
-            content: Joi.string().max(50000).required()
-        })).min(1).max(100).required(),
-        extractionPrompt: Joi.string().max(10000).required()
+            content: Joi.string().max(100000).required()
+        })).min(1).max(1000).required(),
+        extractionPrompt: Joi.string().max(50000).required()
     }),
     
     cancelTask: Joi.object({
@@ -159,10 +159,14 @@ const validate = (schema) => (req, res, next) => {
     });
     
     if (error) {
-        const errors = error.details.map(detail => detail.message);
+        const errors = error.details.map(detail => ({
+            field: detail.path.join('.'),
+            message: detail.message,
+            type: detail.type
+        }));
         return res.status(400).json({ 
             error: 'Validation failed', 
-            details: isDevelopment ? errors : undefined
+            details: errors
         });
     }
     
