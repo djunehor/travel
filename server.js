@@ -1,6 +1,6 @@
 import express, { json } from 'express';
 import cors from 'cors';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import Joi from 'joi';
