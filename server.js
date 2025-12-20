@@ -909,9 +909,19 @@ initDatabase().then((_) => {
         const geminiWs = new WebSocket(geminiUrl);
         
         let messageCount = { toGemini: 0, toClient: 0 };
+        let messageQueue = []; // Queue for messages received before Gemini connection opens
 
         geminiWs.on('open', () => {
             console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ✅ Connected to Gemini API`);
+            
+            // Send any queued messages
+            if (messageQueue.length > 0) {
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] 📤 Sending ${messageQueue.length} queued message(s)`);
+                messageQueue.forEach(data => {
+                    geminiWs.send(data);
+                });
+                messageQueue = [];
+            }
         });
 
         geminiWs.on('error', (error) => {
@@ -967,8 +977,12 @@ initDatabase().then((_) => {
             
             if (geminiWs.readyState === WebSocket.OPEN) {
                 geminiWs.send(data);
+            } else if (geminiWs.readyState === WebSocket.CONNECTING) {
+                // Queue message if connection is still opening
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] 📥 Queueing message (Gemini connecting...)`);
+                messageQueue.push(data);
             } else {
-                console.warn(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⚠️  Cannot send to Gemini - connection not open (state: ${geminiWs.readyState})`);
+                console.warn(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⚠️  Cannot send to Gemini - connection closed (state: ${geminiWs.readyState})`);
             }
         });
 
