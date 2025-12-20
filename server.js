@@ -890,59 +890,100 @@ initDatabase().then((_) => {
     const wss = new WebSocketServer({ server, path: '/gemini-live' });
     
     wss.on('connection', (clientWs, req) => {
-        console.log('[Gemini Proxy] Client connected from', req.socket.remoteAddress);
+        const clientIp = req.socket.remoteAddress;
+        const connectionId = `${clientIp}-${Date.now()}`;
+        
+        console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] Client connected from ${clientIp}`);
         
         // Verify Gemini API key exists
         if (!process.env.GEMINI_API_KEY) {
-            console.error('[Gemini Proxy] Missing GEMINI_API_KEY in environment');
+            console.error(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ❌ Missing GEMINI_API_KEY in environment`);
             clientWs.close(1008, 'Server configuration error');
             return;
         }
 
         // Connect to Gemini API on behalf of client
         // API key must be passed as query parameter for WebSocket connections
+        console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] Initiating connection to Gemini API...`);
         const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${process.env.GEMINI_API_KEY}`;
         const geminiWs = new WebSocket(geminiUrl);
+        
+        let messageCount = { toGemini: 0, toClient: 0 };
 
         geminiWs.on('open', () => {
-            console.log('[Gemini Proxy] Connected to Gemini API');
+            console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ✅ Connected to Gemini API`);
         });
 
         geminiWs.on('error', (error) => {
-            console.error('[Gemini Proxy] Gemini WebSocket error:', error.message);
-            clientWs.close(1011, 'Upstream service error');
+            console.error(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ❌ Gemini WebSocket error:`, {
+                message: error.message,
+                code: error.code,
+                stack: isDevelopment ? error.stack : undefined
+            });
+            if (clientWs.readyState === WebSocket.OPEN) {
+                clientWs.close(1011, 'Upstream service error');
+            }
         });
 
-        geminiWs.on('close', () => {
-            console.log('[Gemini Proxy] Gemini connection closed');
+        geminiWs.on('close', (code, reason) => {
+            console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] Gemini connection closed - Code: ${code}, Reason: ${reason || 'none'}`);
             if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.close(1000, 'Upstream closed');
             }
         });
 
         geminiWs.on('message', (data) => {
+            messageCount.toClient++;
+            
+            // Log message type without exposing sensitive data
+            try {
+                const parsed = JSON.parse(data.toString());
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⬇️  Message #${messageCount.toClient} from Gemini:`, 
+                    Object.keys(parsed).join(', '));
+            } catch {
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⬇️  Message #${messageCount.toClient} from Gemini (binary/unparseable)`);
+            }
+            
             // Relay Gemini response to client
             if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.send(data);
+            } else {
+                console.warn(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⚠️  Cannot send to client - connection not open (state: ${clientWs.readyState})`);
             }
         });
 
         // Relay client messages to Gemini
         clientWs.on('message', (data) => {
+            messageCount.toGemini++;
+            
+            // Log message type without exposing sensitive data
+            try {
+                const parsed = JSON.parse(data.toString());
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⬆️  Message #${messageCount.toGemini} to Gemini:`, 
+                    Object.keys(parsed).join(', '));
+            } catch {
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⬆️  Message #${messageCount.toGemini} to Gemini (binary/unparseable)`);
+            }
+            
             if (geminiWs.readyState === WebSocket.OPEN) {
                 geminiWs.send(data);
+            } else {
+                console.warn(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⚠️  Cannot send to Gemini - connection not open (state: ${geminiWs.readyState})`);
             }
         });
 
-        clientWs.on('close', () => {
-            console.log('[Gemini Proxy] Client disconnected');
+        clientWs.on('close', (code, reason) => {
+            console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] Client disconnected - Code: ${code}, Reason: ${reason || 'none'}, Messages: ${messageCount.toGemini} sent, ${messageCount.toClient} received`);
             if (geminiWs.readyState === WebSocket.OPEN) {
                 geminiWs.close();
             }
         });
 
         clientWs.on('error', (error) => {
-            console.error('[Gemini Proxy] Client WebSocket error:', error.message);
+            console.error(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ❌ Client WebSocket error:`, {
+                message: error.message,
+                code: error.code
+            });
         });
     });
 
