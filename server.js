@@ -551,7 +551,7 @@ app.post('/visa-requirements', async (req, res) => {
         }
 
         // Create cache key
-        const cacheKey = `visa_req:${JSON.stringify({ nationality, residence, visas: visas || [], destination })}`;
+        const cacheKey = `visa_reqx:${JSON.stringify({ nationality, residence, visas: visas || [], destination })}`;
         
         // Check cache
         const cachedResult = await redisClient.get(cacheKey);
@@ -649,11 +649,11 @@ app.post('/visa-requirements', async (req, res) => {
         };
 
         const normalizeRequirement = (req) => {
-            const normalized = req.toLowerCase().trim();
-            if (normalized.includes('visa free') || normalized.includes('visa-free')) return 'visa free';
+            const normalized = req.toLowerCase().trim().replace(/-/g, ' ');
+            if (normalized.includes('visa free')) return 'visa free';
             if (normalized.includes('visa on arrival') || normalized.includes('voa')) return 'visa on arrival';
-            if (normalized.includes('eta') || normalized.includes('e-ta')) return 'eta';
-            if (normalized.includes('e-visa') || normalized.includes('evisa')) return 'e-visa';
+            if (normalized.includes('eta') || normalized.includes('e ta')) return 'eta';
+            if (normalized.includes('e visa') || normalized.includes('evisa')) return 'e-visa';
             return 'visa required';
         };
 
