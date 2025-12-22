@@ -1,6 +1,6 @@
 import express, { json } from 'express';
 import cors from 'cors';
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import Joi from 'joi';
@@ -140,10 +140,10 @@ const schemas = {
     
     extractTripData: Joi.object({
         transcriptHistory: Joi.array().items(Joi.object({
-            role: Joi.string().valid('user', 'assistant', 'system').required(),
-            content: Joi.string().max(50000).required()
-        })).min(1).max(100).required(),
-        extractionPrompt: Joi.string().max(10000).required()
+            role: Joi.string().valid('user', 'assistant', 'system', 'model').required(),
+            content: Joi.string().max(100000).required()
+        })).min(1).max(1000).required(),
+        extractionPrompt: Joi.string().max(50000).required()
     }),
     
     cancelTask: Joi.object({
@@ -159,10 +159,14 @@ const validate = (schema) => (req, res, next) => {
     });
     
     if (error) {
-        const errors = error.details.map(detail => detail.message);
+        const errors = error.details.map(detail => ({
+            field: detail.path.join('.'),
+            message: detail.message,
+            type: detail.type
+        }));
         return res.status(400).json({ 
             error: 'Validation failed', 
-            details: isDevelopment ? errors : undefined
+            details: errors
         });
     }
     
@@ -890,63 +894,114 @@ initDatabase().then((_) => {
     const wss = new WebSocketServer({ server, path: '/gemini-live' });
     
     wss.on('connection', (clientWs, req) => {
-        console.log('[Gemini Proxy] Client connected from', req.socket.remoteAddress);
+        const clientIp = req.socket.remoteAddress;
+        const connectionId = `${clientIp}-${Date.now()}`;
+        
+        console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] Client connected from ${clientIp}`);
         
         // Verify Gemini API key exists
         if (!process.env.GEMINI_API_KEY) {
-            console.error('[Gemini Proxy] Missing GEMINI_API_KEY in environment');
+            console.error(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ❌ Missing GEMINI_API_KEY in environment`);
             clientWs.close(1008, 'Server configuration error');
             return;
         }
 
         // Connect to Gemini API on behalf of client
-        // Security: Use headers for API key instead of query params to prevent logging exposure
-        const geminiUrl = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent';
-        const geminiWs = new WebSocket(geminiUrl, {
-            headers: {
-                'x-goog-api-key': process.env.GEMINI_API_KEY
+        // API key must be passed as query parameter for WebSocket connections
+        console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] Initiating connection to Gemini API...`);
+        const geminiUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${process.env.GEMINI_API_KEY}`;
+        const geminiWs = new WebSocket(geminiUrl);
+        
+        let messageCount = { toGemini: 0, toClient: 0 };
+        let messageQueue = []; // Queue for messages received before Gemini connection opens
+
+        geminiWs.on('open', () => {
+            console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ✅ Connected to Gemini API`);
+            
+            // Send any queued messages
+            if (messageQueue.length > 0) {
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] 📤 Sending ${messageQueue.length} queued message(s)`);
+                messageQueue.forEach(data => {
+                    geminiWs.send(data);
+                });
+                messageQueue = [];
             }
         });
 
-        geminiWs.on('open', () => {
-            console.log('[Gemini Proxy] Connected to Gemini API');
-        });
-
         geminiWs.on('error', (error) => {
-            console.error('[Gemini Proxy] Gemini WebSocket error:', error.message);
-            clientWs.close(1011, 'Upstream service error');
+            console.error(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ❌ Gemini WebSocket error:`, {
+                message: error.message,
+                code: error.code,
+                stack: isDevelopment ? error.stack : undefined
+            });
+            if (clientWs.readyState === WebSocket.OPEN) {
+                clientWs.close(1011, 'Upstream service error');
+            }
         });
 
-        geminiWs.on('close', () => {
-            console.log('[Gemini Proxy] Gemini connection closed');
+        geminiWs.on('close', (code, reason) => {
+            console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] Gemini connection closed - Code: ${code}, Reason: ${reason || 'none'}`);
             if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.close(1000, 'Upstream closed');
             }
         });
 
         geminiWs.on('message', (data) => {
+            messageCount.toClient++;
+            
+            // Log message type without exposing sensitive data
+            try {
+                const parsed = JSON.parse(data.toString());
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⬇️  Message #${messageCount.toClient} from Gemini:`, 
+                    Object.keys(parsed).join(', '));
+            } catch {
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⬇️  Message #${messageCount.toClient} from Gemini (binary/unparseable)`);
+            }
+            
             // Relay Gemini response to client
             if (clientWs.readyState === WebSocket.OPEN) {
                 clientWs.send(data);
+            } else {
+                console.warn(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⚠️  Cannot send to client - connection not open (state: ${clientWs.readyState})`);
             }
         });
 
         // Relay client messages to Gemini
         clientWs.on('message', (data) => {
+            messageCount.toGemini++;
+            
+            // Log message type without exposing sensitive data
+            try {
+                const parsed = JSON.parse(data.toString());
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⬆️  Message #${messageCount.toGemini} to Gemini:`, 
+                    Object.keys(parsed).join(', '));
+            } catch {
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⬆️  Message #${messageCount.toGemini} to Gemini (binary/unparseable)`);
+            }
+            
             if (geminiWs.readyState === WebSocket.OPEN) {
                 geminiWs.send(data);
+            } else if (geminiWs.readyState === WebSocket.CONNECTING) {
+                // Queue message if connection is still opening
+                console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] 📥 Queueing message (Gemini connecting...)`);
+                messageQueue.push(data);
+            } else {
+                console.warn(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ⚠️  Cannot send to Gemini - connection closed (state: ${geminiWs.readyState})`);
             }
         });
 
-        clientWs.on('close', () => {
-            console.log('[Gemini Proxy] Client disconnected');
+        clientWs.on('close', (code, reason) => {
+            console.log(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] Client disconnected - Code: ${code}, Reason: ${reason || 'none'}, Messages: ${messageCount.toGemini} sent, ${messageCount.toClient} received`);
             if (geminiWs.readyState === WebSocket.OPEN) {
                 geminiWs.close();
             }
         });
 
         clientWs.on('error', (error) => {
-            console.error('[Gemini Proxy] Client WebSocket error:', error.message);
+            console.error(new Date().toLocaleString(), `[Gemini Proxy] [${connectionId}] ❌ Client WebSocket error:`, {
+                message: error.message,
+                code: error.code
+            });
         });
     });
 
