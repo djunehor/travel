@@ -51,8 +51,7 @@ export function meetsVisaPreference(requirement, preference) {
         'visa-free': ['visa-free'],
         'visa-on-arrival': ['visa-free', 'visa-on-arrival'],
         'short-processing': ['visa-free', 'visa-on-arrival', 'e-visa'],
-        'any-processing': ['visa-free', 'visa-on-arrival', 'e-visa', 'visa required'],
-        'any': ['visa-free', 'visa-on-arrival', 'e-visa', 'visa required']
+        'any-processing': ['visa-free', 'visa-on-arrival', 'e-visa', 'visa required']
     };
 
     return acceptableStatuses[preference]?.includes(normalized) || false;

@@ -114,7 +114,7 @@ const schemas = {
         timeframe: Joi.string().valid('1-month', '3-month', '6-month', 'flexible').required(),
         duration: Joi.string().valid('3-5-days', '1-week', '2-weeks', '3-weeks', '1-month', 'flexible').required(),
         departureCountry: Joi.string().length(3).uppercase().required(),
-        visaPreference: Joi.string().valid('visa-free', 'visa-on-arrival', 'required', 'any').required(),
+        visaPreference: Joi.string().valid('visa-free', 'visa-on-arrival', 'short-processing', 'any-processing').required(),
         travelStyles: Joi.array().items(Joi.string().max(100)).min(1).max(10).required(),
         travelers: Joi.array().items(Joi.object({
             name: Joi.string().max(100).allow('').optional(),
@@ -129,7 +129,7 @@ const schemas = {
         nationality: Joi.string().length(2).uppercase().required(),
         residence: Joi.string().length(2).uppercase().required(),
         visas: Joi.array().items(Joi.string().length(2).uppercase()).max(20).optional(),
-        visaPreference: Joi.string().valid('visa-free', 'visa-on-arrival', 'required', 'any').required()
+        visaPreference: Joi.string().valid('visa-free', 'visa-on-arrival', 'short-processing', 'any-processing').required()
     }),
     
     feedback: Joi.object({

@@ -101,6 +101,18 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                taskToken:
+                  type: string
+                  description: Optional ownership token for verification (64 hex characters)
+                  minLength: 64
+                  maxLength: 64
       responses:
         '200':
           description: Task cancelled
@@ -115,6 +127,12 @@ paths:
                     type: string
         '400':
           description: Cannot cancel task (already completed/failed/cancelled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - Invalid task token
           content:
             application/json:
               schema:
@@ -185,12 +203,169 @@ paths:
                       type: string
                     airport:
                       type: string
+                    region_name:
+                      type: string
                     city_name:
                       type: string
                     country_code:
                       type: string
                     country_name:
                       type: string
+  /countries:
+    get:
+      summary: List all countries with cost of living data
+      responses:
+        '200':
+          description: List of countries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Country'
+  /rates:
+    get:
+      summary: Get currency exchange rates
+      responses:
+        '200':
+          description: Currency rates
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: number
+  /visa-requirements:
+    post:
+      summary: Get detailed visa requirements for a specific destination
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nationality, destination]
+              properties:
+                nationality:
+                  type: string
+                  description: ISO2 country code
+                residence:
+                  type: string
+                  description: ISO2 country code
+                visas:
+                  type: array
+                  items:
+                    type: string
+                    description: ISO2 country codes of held visas
+                destination:
+                  type: string
+                  description: ISO2 country code or name
+      responses:
+        '200':
+          description: Visa requirements
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VisaRequirementResponse'
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Country not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /extract-trip-data:
+    post:
+      summary: Extract structured trip data from conversation transcripts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractTripDataRequest'
+      responses:
+        '200':
+          description: Extracted trip data
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Structured trip data extracted by AI
+        '500':
+          description: Extraction failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /feedback:
+    post:
+      summary: Submit user feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+      responses:
+        '201':
+          description: Feedback saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /itineraries/random:
+    get:
+      summary: Get a random recently completed itinerary
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+            description: Maximum number of recent itineraries to consider
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: integer
+            description: Unix timestamp - only consider itineraries after this time (default is 7 days ago)
+      responses:
+        '200':
+          description: Random itinerary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  taskId:
+                    type: string
+                  updatedAt:
+                    type: integer
+                  itinerary:
+                    type: object
+        '404':
+          description: No itineraries found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /health:
     get:
       summary: Health check
@@ -208,22 +383,31 @@ components:
   schemas:
     Traveler:
       type: object
-      required: [name, type, nationality, residence]
+      required: [type, nationality, residence]
       properties:
         name:
           type: string
+          maxLength: 100
         type:
           type: string
-          description: 'adult | child'
+          enum: [adult, child]
         nationality:
           type: string
-          description: ISO2 country code or similar (e.g., 'NG')
+          description: ISO2 country code (e.g., 'NG')
+          minLength: 2
+          maxLength: 2
         residence:
           type: string
+          description: ISO2 country code
+          minLength: 2
+          maxLength: 2
         visas:
           type: array
           items:
             type: string
+            description: ISO2 country codes of held visas
+          default: []
+          maxItems: 20
     PlanVacationRequest:
       type: object
       required: [travelers, budget, timeframe, duration, departureCountry, visaPreference, travelStyles]
@@ -234,20 +418,25 @@ components:
             $ref: '#/components/schemas/Traveler'
         budget:
           type: string
+          enum: [under-500, 500-1000, 1000-2000, 2000-5000, over-5000]
         timeframe:
           type: string
+          enum: [1-month, 3-month, 6-month, flexible]
         duration:
           type: string
+          enum: [3-5-days, 1-week, 2-weeks, 3-weeks, 1-month, flexible]
         departureCountry:
           type: string
-          description: Airport IATA code for departure (e.g., 'LOS')
+          description: ISO3 country code (e.g., 'USA')
         visaPreference:
           type: string
-          description: 'visa-free | visa-on-arrival | short-processing | any-processing | any'
+          enum: [visa-free, visa-on-arrival, required, any]
         travelStyles:
           type: array
           items:
             type: string
+          minItems: 1
+          maxItems: 10
     CheckTravelRequest:
       type: object
       required: [nationality, residence, visaPreference]
@@ -267,6 +456,9 @@ components:
       properties:
         taskId:
           type: string
+        taskToken:
+          type: string
+          description: Ownership token for task verification (use for cancellation)
         status:
           type: string
           example: queued
@@ -349,3 +541,114 @@ components:
       properties:
         error:
           type: string
+    Country:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        code:
+          type: string
+          description: ISO2 country code
+        capital:
+          type: string
+        region:
+          type: string
+        subregion:
+          type: string
+        languageCode:
+          type: string
+        currencyCode:
+          type: string
+        costIndex:
+          type: number
+        normalizedCostIndex:
+          type: number
+        emoji:
+          type: string
+          description: Flag emoji
+    VisaRequirementResponse:
+      type: object
+      properties:
+        destination:
+          type: object
+          properties:
+            name:
+              type: string
+            code:
+              type: string
+            emoji:
+              type: string
+        nationality:
+          type: string
+        residence:
+          type: string
+          nullable: true
+        visas:
+          type: array
+          items:
+            type: string
+        visaRequirement:
+          type: object
+          properties:
+            requirement:
+              type: string
+              enum: [visa free, visa on arrival, eta, e-visa, visa required]
+            baseRequirement:
+              type: string
+            appliedCondition:
+              type: string
+              nullable: true
+            notes:
+              type: string
+              nullable: true
+            conditionalRequirements:
+              type: array
+              nullable: true
+              items:
+                type: object
+                properties:
+                  condition:
+                    type: string
+                  requirement:
+                    type: string
+                  notes:
+                    type: string
+    ExtractTripDataRequest:
+      type: object
+      required: [transcriptHistory, extractionPrompt]
+      properties:
+        transcriptHistory:
+          type: array
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [user, assistant, system, model]
+              content:
+                type: string
+                maxLength: 100000
+          minItems: 1
+          maxItems: 1000
+        extractionPrompt:
+          type: string
+          maxLength: 50000
+    FeedbackRequest:
+      type: object
+      required: [email]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          nullable: true
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        message:
+          type: string
+          maxLength: 5000
+          nullable: true
