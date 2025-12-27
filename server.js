@@ -121,14 +121,26 @@ const schemas = {
             type: Joi.string().valid('adult', 'child').required(),
             nationality: Joi.string().length(2).uppercase().required(),
             residence: Joi.string().length(2).uppercase().required(),
-            visas: Joi.array().items(Joi.string().length(2).uppercase()).max(20).default([])
+            visas: Joi.array().items(Joi.string().custom((value, helpers) => {
+                const upperValue = value.toUpperCase();
+                if (upperValue === 'SCHENGEN' || upperValue.length === 2) {
+                    return upperValue;
+                }
+                return helpers.error('any.invalid');
+            }).message('Visa must be a 2-character country code or "Schengen"')).max(20).default([])
         })).min(1).max(20).required()
     }),
     
     checkTravel: Joi.object({
         nationality: Joi.string().length(2).uppercase().required(),
         residence: Joi.string().length(2).uppercase().required(),
-        visas: Joi.array().items(Joi.string().length(2).uppercase()).max(20).optional(),
+        visas: Joi.array().items(Joi.string().custom((value, helpers) => {
+            const upperValue = value.toUpperCase();
+            if (upperValue === 'SCHENGEN' || upperValue.length === 2) {
+                return upperValue;
+            }
+            return helpers.error('any.invalid');
+        }).message('Visa must be a 2-character country code or "Schengen"')).max(20).optional(),
         visaPreference: Joi.string().valid('visa-free', 'visa-on-arrival', 'short-processing', 'any-processing').required()
     }),
     
